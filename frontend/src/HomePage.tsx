@@ -4,14 +4,25 @@ interface Session {
   hostLink: string
   joinLink: string
   capacity: number
+  date: string
+  startTime: string
+  endTime: string
 }
 
-function createPlaceholderSession(capacity: number): Session {
+function createPlaceholderSession(
+  capacity: number,
+  date: string,
+  startTime: string,
+  endTime: string,
+): Session {
   const id = Math.random().toString(36).slice(2, 8)
   return {
     hostLink: `slime.gg/host/${id}`,
     joinLink: `slime.gg/join/${id}`,
     capacity,
+    date,
+    startTime,
+    endTime,
   }
 }
 
@@ -51,20 +62,42 @@ function JoinInfoPopup({
   onSubmit,
 }: {
   onClose: () => void
-  onSubmit: (email: string, username: string, capacity: number) => void
+  onSubmit: (
+    email: string,
+    username: string,
+    capacity: number,
+    date: string,
+    startTime: string,
+    endTime: string,
+  ) => void
 }) {
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [capacity, setCapacity] = useState('')
+  const [date, setDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = () => {
-    if (!email.trim() || !username.trim() || !capacity.trim() || Number(capacity) <= 0) {
+    if (
+      !email.trim() ||
+      !username.trim() ||
+      !capacity.trim() ||
+      Number(capacity) <= 0 ||
+      !date.trim() ||
+      !startTime.trim() ||
+      !endTime.trim()
+    ) {
       setError("Don't forget all the details! \u{1F97A}")
       return
     }
+    if (endTime <= startTime) {
+      setError('End time should be after the start time! \u{1F97A}')
+      return
+    }
     playClickSound()
-    onSubmit(email, username, Number(capacity))
+    onSubmit(email, username, Number(capacity), date, startTime, endTime)
   }
 
   return (
@@ -125,6 +158,41 @@ function JoinInfoPopup({
               className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
             />
           </div>
+          <div>
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+              Date
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                Start time
+              </label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                End time
+              </label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+          </div>
         </div>
 
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
@@ -169,6 +237,9 @@ function HomePage() {
             <p className="text-center text-sm text-neutral-400">
               Capacity: {session.capacity} players
             </p>
+            <p className="text-center text-sm text-neutral-400">
+              {session.date}, {session.startTime}–{session.endTime}
+            </p>
             <button
               onClick={() => setSession(null)}
               className="mx-auto block pt-2 text-sm text-neutral-400 underline hover:text-neutral-600"
@@ -182,8 +253,8 @@ function HomePage() {
       {isPopupOpen && (
         <JoinInfoPopup
           onClose={() => setIsPopupOpen(false)}
-          onSubmit={(_email, _username, capacity) => {
-            setSession(createPlaceholderSession(capacity))
+          onSubmit={(_email, _username, capacity, date, startTime, endTime) => {
+            setSession(createPlaceholderSession(capacity, date, startTime, endTime))
             setIsPopupOpen(false)
           }}
         />
