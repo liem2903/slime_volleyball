@@ -1,2 +1,12 @@
 node_modules
 dist
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+coverage

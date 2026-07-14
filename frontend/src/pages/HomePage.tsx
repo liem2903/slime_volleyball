@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import axios from 'axios'
 
 interface Session {
   hostLink: string
@@ -7,6 +8,7 @@ interface Session {
   date: string
   startTime: string
   endTime: string
+  price: number
 }
 
 function createPlaceholderSession(
@@ -14,6 +16,7 @@ function createPlaceholderSession(
   date: string,
   startTime: string,
   endTime: string,
+  price: number,
 ): Session {
   const id = Math.random().toString(36).slice(2, 8)
   return {
@@ -23,6 +26,7 @@ function createPlaceholderSession(
     date,
     startTime,
     endTime,
+    price,
   }
 }
 
@@ -69,6 +73,7 @@ function JoinInfoPopup({
     date: string,
     startTime: string,
     endTime: string,
+    price: number,
   ) => void
 }) {
   const [email, setEmail] = useState('')
@@ -77,6 +82,7 @@ function JoinInfoPopup({
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  const [price, setPrice] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = () => {
@@ -87,7 +93,9 @@ function JoinInfoPopup({
       Number(capacity) <= 0 ||
       !date.trim() ||
       !startTime.trim() ||
-      !endTime.trim()
+      !endTime.trim() ||
+      !price.trim() ||
+      Number(price) < 0
     ) {
       setError("Don't forget all the details! \u{1F97A}")
       return
@@ -97,7 +105,7 @@ function JoinInfoPopup({
       return
     }
     playClickSound()
-    onSubmit(email, username, Number(capacity), date, startTime, endTime)
+    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price))
   }
 
   return (
@@ -155,6 +163,20 @@ function JoinInfoPopup({
               value={capacity}
               onChange={(e) => setCapacity(e.target.value)}
               placeholder="6"
+              className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+              Price
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="10"
               className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
             />
           </div>
@@ -240,6 +262,9 @@ function HomePage() {
             <p className="text-center text-sm text-neutral-400">
               {session.date}, {session.startTime}–{session.endTime}
             </p>
+            <p className="text-center text-sm text-neutral-400">
+              Price: ${session.price.toFixed(2)}
+            </p>
             <button
               onClick={() => setSession(null)}
               className="mx-auto block pt-2 text-sm text-neutral-400 underline hover:text-neutral-600"
@@ -253,8 +278,10 @@ function HomePage() {
       {isPopupOpen && (
         <JoinInfoPopup
           onClose={() => setIsPopupOpen(false)}
-          onSubmit={(_email, _username, capacity, date, startTime, endTime) => {
-            setSession(createPlaceholderSession(capacity, date, startTime, endTime))
+          onSubmit={(email, username, capacity, date, startTime, endTime, price) => {
+            const session_details = {capacity, date, startTime, endTime, price, email, username};
+            axios.post("/api/session/create", session_details);
+            setSession(createPlaceholderSession(capacity, date, startTime, endTime, price))
             setIsPopupOpen(false)
           }}
         />
