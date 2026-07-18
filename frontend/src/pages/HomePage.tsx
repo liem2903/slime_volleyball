@@ -32,6 +32,11 @@ function HomePage() {
           <div className="space-y-3">
             <LinkRow label="Your host link" value={session.hostLink} />
             <LinkRow label="Share with players" value={session.joinLink} />
+            {session.courtName && (
+              <p className="text-center text-sm text-neutral-400">
+                Court: {session.courtName}
+              </p>
+            )}
             <p className="text-center text-sm text-neutral-400">
               Capacity: {session.capacity} players
             </p>
@@ -54,10 +59,10 @@ function HomePage() {
       {isPopupOpen && (
         <JoinInfoPopup
           onClose={() => setIsPopupOpen(false)}
-          onSubmit={async (email, username, capacity, date, startTime, endTime, price) => {
-            const session_details = {capacity, date, startTime, endTime, price, email, username};
-            const links: Links = await axios.post("/api/session/create", session_details);
-            setSession(createPlaceholderSession(capacity, date, startTime, endTime, price, links.host_link, links.join_link))
+          onSubmit={async (email, username, capacity, date, startTime, endTime, price, courtName) => {
+            const session_details = {capacity, date, startTime, endTime, price, email, username, courtName};
+            const links = (await axios.post("/api/session/create", session_details));
+            setSession(createPlaceholderSession(capacity, date, startTime, endTime, price, links.data.host_link, links.data.join_link, courtName))
             setIsPopupOpen(false)
           }}
         />
@@ -66,5 +71,7 @@ function HomePage() {
   )
 }
 
+// Not working links aren't connecting to front end. 
+// That's it rn. 
 
 export default HomePage

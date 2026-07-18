@@ -7,7 +7,8 @@ function createPlaceholderSession(
   endTime: string,
   price: number,
   hostLink: string,
-  joinLink: string
+  joinLink: string,
+  courtName?: string
 ): Session {
   return {
     hostLink,
@@ -17,6 +18,7 @@ function createPlaceholderSession(
     startTime,
     endTime,
     price,
+    courtName,
   }
 }
 

@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom';
 import { playClickSound } from '../lib/sound'
 import PersonRow from '../components/PersonRow'
 import JoinSessionPopup from '../components/JoinSessionPopup'
+import { convertDate, convertTime } from '../helpers/sessionHelpers';
+import type { SessionInformation } from '../types'
+import axios from 'axios'
 
 // --- PLACEHOLDER DATA (delete this block once the backend is wired up) ---
 const PLACEHOLDER_SESSION = {
@@ -18,19 +22,34 @@ function SessionPage() {
   const [isPopupOpen, setIsPopupOpen] = useState(false)
   // Placeholder join flow (no backend yet) — swap for real state once players come from the API.
   const [players, setPlayers] = useState(PLACEHOLDER_SESSION.players)
+  const [ sessionInformation, setSessionInformation ] = useState<SessionInformation>();
+  const { waitlist } = PLACEHOLDER_SESSION
+  const { sessionId } = useParams<string>();
 
-  const { courtName, date, startTime, endTime, capacity, waitlist } = PLACEHOLDER_SESSION
+  useEffect(() => {
+    const fetchSessionData = async (sessionId: string | undefined) => {            
+      let sessionInfo: SessionInformation = (await axios.get(`/api/session/${sessionId}`)).data.data;
+      let new_session_info: SessionInformation = {...sessionInfo, date: convertDate(sessionInfo.date), time_start: convertTime(sessionInfo.time_start), time_end: convertTime(sessionInfo.time_end)}
+      setSessionInformation(new_session_info);
+    }
+
+    // const fetchPlayers = async(sessionId: string | undefined) => {
+    // }
+
+    fetchSessionData(sessionId);
+    // fetchPlayers(sessionId);
+  }, [])
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-white to-white px-6 py-20">
       <p className="text-sm font-medium uppercase tracking-wide text-neutral-400">
-        {players.length}/{capacity} players
+        {players.length}/{sessionInformation?.capacity} players
       </p>
       <h1 className="mt-2 text-center text-5xl font-extrabold tracking-tight text-emerald-400">
-        {courtName}
+        {sessionInformation?.court_name ?? `${sessionInformation?.host_name} session`}
       </h1>
       <p className="mt-3 text-neutral-500">
-        {date}, {startTime}–{endTime}
+        {sessionInformation?.date} {sessionInformation?.time_start}–{sessionInformation?.time_end}
       </p>
 
       <div className="mt-16 grid w-full max-w-3xl grid-cols-1 gap-6 md:grid-cols-3">
@@ -73,7 +92,6 @@ function SessionPage() {
         <JoinSessionPopup
           onClose={() => setIsPopupOpen(false)}
           onSubmit={(_email, name) => {
-            // TODO: replace with a real API call once the backend join endpoint exists.
             setPlayers((prev) => [...prev, name])
             setIsPopupOpen(false)
           }}

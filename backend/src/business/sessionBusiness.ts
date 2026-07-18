@@ -1,7 +1,7 @@
-import { createSessionData } from '../data/sessionRepository';
-import { Links, SessionDetails } from '../utlity/types';
+import { createSessionData, getSessionData } from '../data/sessionRepository';
+import { Links, SessionDetails, SessionInformation } from '../types'
 
-export async function createSessionBusiness(capacity: number, date: string, startTime: string, endTime: string, price: number, email: string, name: string): Promise<Links> {
+export async function createSessionBusiness(capacity: number, date: string, startTime: string, endTime: string, price: number, email: string, name: string, courtName?: string): Promise<Links> {
     // So I need to generate session ID with code - and generate my two links.
     const created_at = new Date().toISOString();
     const time_start = new Date(`${date}T${startTime}`).toISOString();
@@ -10,9 +10,9 @@ export async function createSessionBusiness(capacity: number, date: string, star
     const session_id = crypto.randomUUID();
     const opaque_token = crypto.randomUUID();
     // GENERATE USER LINK FOR SESSION.
-    const user_link = `https://localhost:3001/session/${session_id}`;
+    const user_link = `http://localhost:5173/session/${session_id}`;
     // GENERATE ADMIN LINK FOR SESSION. 
-    const admin_link = `https://localhost:3001/session/${session_id}?token=${opaque_token}`;
+    const admin_link = `http://localhost:5173/session/${session_id}/${opaque_token}`;
 
     const session_data: SessionDetails = {
         id: session_id,
@@ -23,7 +23,9 @@ export async function createSessionBusiness(capacity: number, date: string, star
         time_start,
         time_end,
         cost_cents: price,
-        capacity
+        capacity,
+        court_name: courtName,
+        date,
     }
 
     await createSessionData(session_data);
@@ -32,4 +34,8 @@ export async function createSessionBusiness(capacity: number, date: string, star
         host_link: admin_link,
         join_link: user_link
     }
+}
+
+export async function getSessionBusiness(sessionId: string): Promise<SessionInformation> {    
+    return await getSessionData(sessionId);
 }

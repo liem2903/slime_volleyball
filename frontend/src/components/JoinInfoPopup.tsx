@@ -14,6 +14,7 @@ function JoinInfoPopup({
     startTime: string,
     endTime: string,
     price: number,
+    courtName?: string,
   ) => void
 }) {
   const [email, setEmail] = useState('')
@@ -23,6 +24,7 @@ function JoinInfoPopup({
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [price, setPrice] = useState('')
+  const [courtName, setCourtName] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = () => {
@@ -45,7 +47,7 @@ function JoinInfoPopup({
       return
     }
     playClickSound()
-    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price))
+    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price), courtName.trim() || undefined)
   }
 
   return (
@@ -117,6 +119,18 @@ function JoinInfoPopup({
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="10"
+              className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+              Court name <span className="normal-case text-neutral-300">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={courtName}
+              onChange={(e) => setCourtName(e.target.value)}
+              placeholder="Sunset Beach Court 3"
               className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-2 text-neutral-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200"
             />
           </div>

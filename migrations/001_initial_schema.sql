@@ -7,10 +7,12 @@ CREATE TABLE sessions (
     host_email VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     admin_token_hash VARCHAR(255) NOT NULL,
+    date DATE NOT NULL,
     time_start TIMESTAMPTZ NOT NULL,
     time_end TIMESTAMPTZ NOT NULL,
     cost_cents INTEGER NOT NULL,
     capacity INTEGER NOT NULL,
+    court_name TEXT,
     state session_state NOT NULL DEFAULT 'unlocked'
 );
 
@@ -23,4 +25,4 @@ CREATE TABLE attendances (
     session_id TEXT NOT NULL REFERENCES sessions(id),
     joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (email, session_id)
-);
+)
