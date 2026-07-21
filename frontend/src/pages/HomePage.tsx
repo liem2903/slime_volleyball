@@ -61,8 +61,8 @@ function HomePage() {
           onClose={() => setIsPopupOpen(false)}
           onSubmit={async (email, username, capacity, date, startTime, endTime, price, courtName) => {
             const session_details = {capacity, date, startTime, endTime, price, email, username, courtName};
-            const links = (await axios.post("/api/session/create", session_details));
-            setSession(createPlaceholderSession(capacity, date, startTime, endTime, price, links.data.host_link, links.data.join_link, courtName))
+            const links = (await axios.post("/api/session/create", session_details)).data;
+            setSession(createPlaceholderSession(capacity, date, startTime, endTime, price, links.host_link, links.join_link, courtName))
             setIsPopupOpen(false)
           }}
         />

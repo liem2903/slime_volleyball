@@ -3,41 +3,40 @@ import { useParams } from 'react-router-dom';
 import { playClickSound } from '../lib/sound'
 import PersonRow from '../components/PersonRow'
 import JoinSessionPopup from '../components/JoinSessionPopup'
-import { convertDate, convertTime } from '../helpers/sessionHelpers';
-import type { SessionInformation } from '../types'
+import { convertDateToAbbreviation, convertTimeToMeredian } from '../helpers/sessionHelpers';
+import type { WaitList, Player, SessionInformation } from '../types'
 import axios from 'axios'
 
 // --- PLACEHOLDER DATA (delete this block once the backend is wired up) ---
-const PLACEHOLDER_SESSION = {
-  courtName: 'Sunset Beach Court 3',
-  date: 'July 19, 2026',
-  startTime: '4:00 PM',
-  endTime: '6:00 PM',
-  capacity: 8,
-  players: ['Sandy Slime', 'Kevin Bump', 'Ava Setter', 'Marco Spike'],
-  waitlist: ['Priya Dig', 'Owen Ace'],
-}
 
 function SessionPage() {
   const [isPopupOpen, setIsPopupOpen] = useState(false)
   // Placeholder join flow (no backend yet) — swap for real state once players come from the API.
-  const [players, setPlayers] = useState(PLACEHOLDER_SESSION.players)
   const [ sessionInformation, setSessionInformation ] = useState<SessionInformation>();
-  const { waitlist } = PLACEHOLDER_SESSION
+  const [ players, setPlayers ] = useState<Player[]>([]);
+  const [ waitlist, setWaitlist ] = useState<WaitList[]>([]);
   const { sessionId } = useParams<string>();
 
   useEffect(() => {
     const fetchSessionData = async (sessionId: string | undefined) => {            
       let sessionInfo: SessionInformation = (await axios.get(`/api/session/${sessionId}`)).data.data;
-      let new_session_info: SessionInformation = {...sessionInfo, date: convertDate(sessionInfo.date), time_start: convertTime(sessionInfo.time_start), time_end: convertTime(sessionInfo.time_end)}
+      let new_session_info: SessionInformation = {...sessionInfo, date: convertDateToAbbreviation(sessionInfo.date), time_start: convertTimeToMeredian(sessionInfo.time_start), time_end: convertTimeToMeredian(sessionInfo.time_end)}
       setSessionInformation(new_session_info);
     }
 
-    // const fetchPlayers = async(sessionId: string | undefined) => {
-    // }
+    const fetchPlayers = async(sessionId: string | undefined) => {
+      let players: Player[] = (await axios.get(`/api/session/players/${sessionId}`)).data.data;
+      setPlayers(players);
+    }
+
+    const fetchWaitlist = async(sessionId: string | undefined) => {
+      let waitList: WaitList[] = (await axios.get(`/api/session/waitlist/${sessionId}`)).data.data;
+      setWaitlist(waitList);
+    }
 
     fetchSessionData(sessionId);
-    // fetchPlayers(sessionId);
+    fetchPlayers(sessionId);
+    fetchWaitlist(sessionId);
   }, [])
 
   return (
@@ -58,8 +57,8 @@ function SessionPage() {
             Players in session
           </h2>
           <div className="space-y-3">
-            {players.map((name) => (
-              <PersonRow key={name} name={name} />
+            {players.map((player) => (
+              <PersonRow key={player.id} name={player.name} />
             ))}
           </div>
         </div>
@@ -70,7 +69,7 @@ function SessionPage() {
           </h2>
           <div className="space-y-3">
             {waitlist.length > 0 ? (
-              waitlist.map((name) => <PersonRow key={name} name={name} />)
+              waitlist.map((person) => <PersonRow key={person.id} name={person.name} />)
             ) : (
               <p className="text-sm text-neutral-400">No one's waiting right now.</p>
             )}
@@ -91,8 +90,8 @@ function SessionPage() {
       {isPopupOpen && (
         <JoinSessionPopup
           onClose={() => setIsPopupOpen(false)}
-          onSubmit={(_email, name) => {
-            setPlayers((prev) => [...prev, name])
+          onSubmit={(email, name) => {
+            setPlayers((prev) => [...prev, { id: email, name }])
             setIsPopupOpen(false)
           }}
         />

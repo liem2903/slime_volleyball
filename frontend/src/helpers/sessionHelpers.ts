@@ -1,4 +1,4 @@
-export function convertDate(date: string): string {
+export function convertDateToAbbreviation(date: string): string {
   let temp_date = new Date(date); 
 
   return temp_date.toLocaleDateString("en-UK", {
@@ -8,7 +8,7 @@ export function convertDate(date: string): string {
   });
 }
 
-export function convertTime(time: string): string {
+export function convertTimeToMeredian(time: string): string {
   let temp_date = new Date(time);
 
   return temp_date.toLocaleTimeString("en-UK", 

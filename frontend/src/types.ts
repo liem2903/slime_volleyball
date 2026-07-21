@@ -38,3 +38,10 @@ export type SessionInformation = {
     date: string;
     court_name?: string;
 }
+
+export type Player = {
+    id: string;
+    name: string;
+}
+
+export type WaitList = Player;

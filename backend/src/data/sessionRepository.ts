@@ -1,6 +1,7 @@
-import { SessionDetails, SessionInformation } from "../types";
+import { Player, SessionDetails, SessionInformation } from "../types";
 import  { pool } from "../data";
-import { SessionNotFoundError } from "../error"
+import { SessionNotFoundError, InvalidParametersError } from "../error"
+import { QueryResult } from "pg";
 
 export async function createSessionData(session_data: SessionDetails) {
     try {
@@ -47,4 +48,27 @@ export async function getSessionData(session_id: string): Promise<SessionInforma
         court_name: session_data.court_name,
         date: session_data.date,
     }   
+}
+
+export async function getAttendanceData(session_id: string, attendance_state: string, attendance_state_2: string | undefined, isTwoStates: boolean): Promise<Player[]> {
+    let data: QueryResult;
+
+    if (isTwoStates) {
+        data = await pool.query(`SELECT id, name FROM attendances WHERE session_id = $1 AND (state = $2 OR state = $3)`, [ session_id, attendance_state, attendance_state_2]);
+    } else {
+        data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND state = $2`, [session_id, attendance_state]);
+    }
+
+    if (data.rowCount == 0) {
+        throw new SessionNotFoundError();
+    }
+
+    let players: Player[] = data.rows.map((player) => {
+        return {
+            id: player.id,
+            name: player.name
+        }
+    });
+
+    return players;
 }

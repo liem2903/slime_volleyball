@@ -22,7 +22,7 @@ CREATE TABLE attendances (
     email VARCHAR(255) NOT NULL,
     user_token_hash VARCHAR(255) NOT NULL,
     state attendance_state NOT NULL DEFAULT 'interested',
-    session_id TEXT NOT NULL REFERENCES sessions(id),
+    session_id TEXT NOT NULL REFERENCES sessions(id), 
     joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (email, session_id)
 )

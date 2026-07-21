@@ -10,3 +10,9 @@ export class SessionNotFoundError extends AppError {
         super("Session ID does not exist", 404);
     }
 }
+
+export class InvalidParametersError extends AppError {
+    constructor() {
+        super("Parameters don't exist", 400);
+    }
+}
