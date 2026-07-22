@@ -1,6 +1,6 @@
 import { Player, SessionDetails, SessionInformation } from "../types";
 import  { pool } from "../data";
-import { SessionNotFoundError, InvalidParametersError } from "../error"
+import { NotFoundError, InvalidParametersError } from "../error"
 import { QueryResult } from "pg";
 
 export async function createSessionData(session_data: SessionDetails) {
@@ -23,19 +23,24 @@ export async function createSessionData(session_data: SessionDetails) {
             ]
         );
     } catch (err) {
-        throw new Error(`session insert failed: ${err}`);
+        throw new NotFoundError();
     }
 }
 
 export async function getSessionData(session_id: string): Promise<SessionInformation> {
-    let session = await pool.query('SELECT * FROM sessions WHERE id = $1', [session_id]);
+    let session: QueryResult;
+    
+    try {
+        session = await pool.query('SELECT * FROM sessions WHERE id = $1', [session_id]);
+    } catch (err) {
+        throw new NotFoundError();
+    }   
+
     let session_data = session.rows[0]
-
+    
     if (session.rowCount == 0) {
-        throw new SessionNotFoundError();
+        throw new NotFoundError();
     }
-
-    console.log(session_data);
     
     return {
         id: session_data.id,
@@ -53,14 +58,18 @@ export async function getSessionData(session_id: string): Promise<SessionInforma
 export async function getAttendanceData(session_id: string, attendance_state: string, attendance_state_2: string | undefined, isTwoStates: boolean): Promise<Player[]> {
     let data: QueryResult;
 
-    if (isTwoStates) {
-        data = await pool.query(`SELECT id, name FROM attendances WHERE session_id = $1 AND (state = $2 OR state = $3)`, [ session_id, attendance_state, attendance_state_2]);
-    } else {
-        data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND state = $2`, [session_id, attendance_state]);
+    try {
+        if (isTwoStates) {
+            data = await pool.query(`SELECT id, name FROM attendances WHERE session_id = $1 AND (state = $2 OR state = $3)`, [ session_id, attendance_state, attendance_state_2]);
+        } else {
+            data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND state = $2`, [session_id, attendance_state]);
+        }
+    } catch (err) {
+        throw new NotFoundError();
     }
-
+    
     if (data.rowCount == 0) {
-        throw new SessionNotFoundError();
+        throw new NotFoundError();
     }
 
     let players: Player[] = data.rows.map((player) => {

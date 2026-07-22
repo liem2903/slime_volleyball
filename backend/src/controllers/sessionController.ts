@@ -1,35 +1,33 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { getSessionBusiness, createSessionBusiness, getAttendance } from '../business/sessionBusiness';
-import { SessionNotFoundError } from '../error';
+import { NotFoundError } from '../error';
 
 type Links = {
     host_link: string;
     join_link: string;
 }
 
-export async function createSession(req: Request, res: Response) {
+export async function createSession(req: Request, res: Response, next: NextFunction) {
     try {
         let { capacity, date, startTime, endTime, price, email, username, courtName } = req.body;
         let links: Links = await createSessionBusiness(capacity, date, startTime, endTime, price, email, username, courtName);
         res.status(200).json({data: links});
     } catch (err) {
-        console.error('createSession failed:', err);
-        res.status(500).json({ error: 'Failed to create session' });
+        next(err);       
     }
 }
 
-export async function getSession(req: Request, res: Response) {
+export async function getSession(req: Request, res: Response, next: NextFunction ) {
     try {
         const { sessionId } = req.params;
         const sessionDetails = await getSessionBusiness(sessionId);
         res.status(200).json({data: sessionDetails, success: true});
     } catch (err) {
-        if (err instanceof SessionNotFoundError) res.status(404).json({error: err.message}) 
-        else res.status(400).json({error: err, success: true});
+        next(err);
     }
 }
 
-export async function getPlayers(req: Request, res: Response) {
+export async function getPlayers(req: Request, res: Response, next: NextFunction) {
     try {
         const { sessionId } = req.params;
         const attendance_state = 'interested';
@@ -38,11 +36,11 @@ export async function getPlayers(req: Request, res: Response) {
 
         res.status(200).json({data: players, success: true});
     } catch (err) {
-        res.status(400).json({error: err, success: false});
+        next(err);
     }
 }
 
-export async function getWaitlist(req: Request, res: Response) {
+export async function getWaitlist(req: Request, res: Response, next: NextFunction) {
     try {
         const { sessionId } = req.params;
         const attendance_state = 'waitlist';
@@ -50,6 +48,6 @@ export async function getWaitlist(req: Request, res: Response) {
 
         res.status(200).json({data: waitlist, isGood: true})
     } catch (err) {
-        res.status(400).json({error: err, isGood: false})
+        next(err);
     }
 }
