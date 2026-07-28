@@ -1,5 +1,5 @@
 export class AppError extends Error {
-    constructor(message: string, public readonly statusCode: number, public readonly cause?: unknown) {
+    constructor(message: string, public readonly statusCode: number, public readonly type?: unknown) {
         super(message);
     }
 }
@@ -17,14 +17,14 @@ export class InvalidParametersError extends AppError {
 }
 
 export class ConflictError extends AppError {
-    constructor(message: string, cause: any) {
-        super(message, 409, cause)
+    constructor(message: string, type: any) {
+        super(message, 409, type)
     }
 }
 
 export class BadRequestError extends AppError {
-    constructor(message: string, cause: any) {
-        super(message, 400, cause)
+    constructor(message: string, type: any) {
+        super(message, 400, type)
     }
 }
 
