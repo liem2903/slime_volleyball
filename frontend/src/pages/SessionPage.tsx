@@ -3,34 +3,37 @@ import { useParams } from 'react-router-dom';
 import { playClickSound } from '../lib/sound'
 import PersonRow from '../components/PersonRow'
 import JoinSessionPopup from '../components/JoinSessionPopup'
+import LinkRow from '../components/LinkRow'
 import { convertDateToAbbreviation, convertTimeToMeredian } from '../helpers/sessionHelpers';
-import type { WaitList, Player, SessionInformation } from '../types'
+import type { WaitList, Player, SessionResult, PlayerResponse } from '../types'
 import axios from 'axios'
-
-// --- PLACEHOLDER DATA (delete this block once the backend is wired up) ---
 
 function SessionPage() {
   const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [playerLink, setPlayerLink] = useState<string | null>(null)
   // Placeholder join flow (no backend yet) — swap for real state once players come from the API.
-  const [ sessionInformation, setSessionInformation ] = useState<SessionInformation>();
+  const [ sessionInformation, setSessionInformation ] = useState<SessionResult>();
   const [ players, setPlayers ] = useState<Player[]>([]);
   const [ waitlist, setWaitlist ] = useState<WaitList[]>([]);
   const { sessionId } = useParams<string>();
 
   useEffect(() => {
     const fetchSessionData = async (sessionId: string | undefined) => {            
-      let sessionInfo: SessionInformation = (await axios.get(`/api/session/${sessionId}`)).data.data;
-      let new_session_info: SessionInformation = {...sessionInfo, date: convertDateToAbbreviation(sessionInfo.date), time_start: convertTimeToMeredian(sessionInfo.time_start), time_end: convertTimeToMeredian(sessionInfo.time_end)}
+      let sessionInfo: SessionResult = (await axios.get(`/api/session/${sessionId}`)).data.data;
+
+      console.log(sessionInfo);
+
+      let new_session_info: SessionResult = {...sessionInfo, date: convertDateToAbbreviation(sessionInfo.date), time_start: convertTimeToMeredian(sessionInfo.time_start), time_end: convertTimeToMeredian(sessionInfo.time_end)}
       setSessionInformation(new_session_info);
     }
 
     const fetchPlayers = async(sessionId: string | undefined) => {
-      let players: Player[] = (await axios.get(`/api/session/players/${sessionId}`)).data.data;
+      let players: Player[] = (await axios.get(`/api/players/${sessionId}`)).data.data;
       setPlayers(players);
     }
 
     const fetchWaitlist = async(sessionId: string | undefined) => {
-      let waitList: WaitList[] = (await axios.get(`/api/session/waitlist/${sessionId}`)).data.data;
+      let waitList: WaitList[] = (await axios.get(`/api/players/waitlist/${sessionId}`)).data.data;
       setWaitlist(waitList);
     }
 
@@ -77,22 +80,30 @@ function SessionPage() {
         </div>
       </div>
 
-      <button
-        onClick={() => {
-          playClickSound()
-          setIsPopupOpen(true)
-        }}
-        className="mt-16 w-full max-w-sm cursor-pointer rounded-full bg-amber-200 px-8 py-4 font-semibold text-neutral-800 shadow-sm transition-all duration-150 hover:scale-105 hover:bg-amber-300 hover:shadow-md active:scale-95 active:bg-amber-400 active:shadow-sm"
-      >
-        Join Session
-      </button>
+      {playerLink ? (
+        <div className="mt-16 w-full max-w-sm">
+          <LinkRow label="Your link" value={playerLink} />
+        </div>
+      ) : (
+        <button
+          onClick={() => {
+            playClickSound()
+            setIsPopupOpen(true)
+          }}
+          className="mt-16 w-full max-w-sm cursor-pointer rounded-full bg-amber-200 px-8 py-4 font-semibold text-neutral-800 shadow-sm transition-all duration-150 hover:scale-105 hover:bg-amber-300 hover:shadow-md active:scale-95 active:bg-amber-400 active:shadow-sm"
+        >
+          Join Session
+        </button>
+      )}
 
       {isPopupOpen && (
         <JoinSessionPopup
           onClose={() => setIsPopupOpen(false)}
-          onSubmit={(email, name) => {
-            setPlayers((prev) => [...prev, { id: email, name }])
-            setIsPopupOpen(false)
+          onSubmit={async (email, name) => {
+            const player: PlayerResponse = (await axios.post('/api/players/create', {email, name, session_id: sessionId})).data.data;
+            setPlayers((prev) => [...prev, { id: player.id, name: player.name }]);
+            setPlayerLink(player.user_link);
+            setIsPopupOpen(false);
           }}
         />
       )}

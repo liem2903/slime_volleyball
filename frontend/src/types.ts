@@ -1,20 +1,21 @@
 export type Links = {
-    host_link: string;
-    join_link: string;
+    host_link: string,
+    join_link: string,
+    session_id: string,
 }
 
 export type Session = {
-    hostLink: string
-    joinLink: string
-    capacity: number
-    date: string
-    startTime: string
-    endTime: string
-    price: number
-    courtName?: string
+    hostLink: string,
+    joinLink: string,
+    capacity: number,
+    date: string,
+    startTime: string,
+    endTime: string,
+    cost_cents: number,
+    courtName: string,
 }
 
-export type SessionDetails = {
+export type SessionRequest = {
     id: string;
     host_name: string;
     host_email: string;
@@ -24,10 +25,11 @@ export type SessionDetails = {
     time_end: string
     cost_cents: number
     capacity: number;
+    date: string;
     court_name?: string;
 }
 
-export type SessionInformation = {
+export type SessionResult = {
     id: string;
     host_name: string;
     admin_token_hash: string;
@@ -35,13 +37,28 @@ export type SessionInformation = {
     time_end: string
     cost_cents: number
     capacity: number;
-    date: string;
     court_name?: string;
+    date: string;
+}
+
+export type PlayerRequest = {
+    name: string,
+    email: string,
+    session_id: string,
+}
+
+export type PlayerResponse = {
+    id: string,
+    name: string,
+    email: string,
+    session_id: string,
+    joined_at: string,
+    user_link: string,
 }
 
 export type Player = {
     id: string;
-    name: string;
+    name: string
 }
 
 export type WaitList = Player;

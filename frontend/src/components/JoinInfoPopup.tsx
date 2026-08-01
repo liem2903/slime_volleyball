@@ -14,7 +14,7 @@ function JoinInfoPopup({
     startTime: string,
     endTime: string,
     price: number,
-    courtName?: string,
+    courtName: string,
   ) => void
 }) {
   const [email, setEmail] = useState('')
@@ -37,7 +37,8 @@ function JoinInfoPopup({
       !startTime.trim() ||
       !endTime.trim() ||
       !price.trim() ||
-      Number(price) < 0
+      Number(price) < 0 ||
+      !courtName.trim()
     ) {
       setError("Don't forget all the details! \u{1F97A}")
       return
@@ -47,7 +48,7 @@ function JoinInfoPopup({
       return
     }
     playClickSound()
-    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price), courtName.trim() || undefined)
+    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price), courtName.trim())
   }
 
   return (
@@ -124,7 +125,7 @@ function JoinInfoPopup({
           </div>
           <div>
             <label className="text-xs font-medium uppercase tracking-wide text-neutral-400">
-              Court name <span className="normal-case text-neutral-300">(optional)</span>
+              Court name
             </label>
             <input
               type="text"

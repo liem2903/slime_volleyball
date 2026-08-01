@@ -5,10 +5,10 @@ function createPlaceholderSession(
   date: string,
   startTime: string,
   endTime: string,
-  price: number,
+  cost_cents: number,
   hostLink: string,
   joinLink: string,
-  courtName?: string
+  courtName: string
 ): Session {
   return {
     hostLink,
@@ -17,7 +17,7 @@ function createPlaceholderSession(
     date,
     startTime,
     endTime,
-    price,
+    cost_cents,
     courtName,
   }
 }
