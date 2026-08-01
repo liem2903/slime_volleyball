@@ -1,14 +1,11 @@
 import { NextFunction, Request, Response } from 'express';
-import { getAttendance, createPlayerBusiness } from '../business/playerBusiness';
+import { createPlayerBusiness, getWaitlistBusiness, getPlayersBusiness, deletePlayerBusiness } from '../business/playerBusiness';
 import { PlayerResponse } from '../utility/types';
 
 export async function getPlayers(req: Request, res: Response, next: NextFunction) {
     try {
         const { sessionId } = req.params;
-        const attendance_state = 'interested';
-        const attendance_state_2 = 'confirmed';
-        const players = await getAttendance(sessionId, attendance_state, attendance_state_2);
-
+        const players = await getPlayersBusiness(sessionId);
         res.status(200).json({data: players, success: true});
     } catch (err) {
         next(err);
@@ -18,8 +15,7 @@ export async function getPlayers(req: Request, res: Response, next: NextFunction
 export async function getWaitlist(req: Request, res: Response, next: NextFunction) {
     try {
         const { sessionId } = req.params;
-        const attendance_state = 'waitlist';
-        const waitlist = await getAttendance(sessionId, attendance_state, undefined);
+        const waitlist = await getWaitlistBusiness(sessionId);
 
         res.status(200).json({data: waitlist, success: true})
     } catch (err) {
@@ -33,6 +29,17 @@ export async function createPlayer(req: Request, res: Response, next: NextFuncti
 
         let data: PlayerResponse = await createPlayerBusiness(session_id, name, email);
         res.status(200).json({data, success: true});
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function deletePlayer(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { playerId, sessionId } = req.params;
+        await deletePlayerBusiness(playerId, sessionId); 
+
+        res.status(200).json({success: true});
     } catch (err) {
         next(err);
     }

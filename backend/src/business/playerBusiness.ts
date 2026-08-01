@@ -1,15 +1,14 @@
-import { getAttendanceData, createPlayerRepository } from '../data/playerRepository';
+import { createPlayerRepository, getPlayerRepository, getWaitlistRepository, deletePlayerRepository } from '../data/playerRepository';
 import { generateSHA256 } from '../utility/helper';
-import { Player, PlayerResponse } from '../utility/types'
+import { Player, PlayerResponse, WaitList } from '../utility/types'
 
-export async function getAttendance(sessionId: string, attendance_state: string, attendance_state_2: string | undefined): Promise<Player[]> {
-    if (!attendance_state_2) {
-        return await getAttendanceData(sessionId, attendance_state, undefined, false);
-    } else {
-        return await getAttendanceData(sessionId, attendance_state, attendance_state_2, true);
-    }
+export async function getPlayersBusiness(sessionId: string): Promise<Player[]> {
+    return await getPlayerRepository(sessionId);
 }
 
+export async function getWaitlistBusiness(sessionId: string): Promise<WaitList[]> {
+    return await getWaitlistRepository(sessionId);
+}
 
 export async function createPlayerBusiness(session_id: string, name: string, email: string): Promise<PlayerResponse> {
     let joined_at = new Date().toISOString();
@@ -29,4 +28,8 @@ export async function createPlayerBusiness(session_id: string, name: string, ema
         joined_at,
         user_link,
     }
+}
+
+export async function deletePlayerBusiness(playerId: string, sessionId: string) {
+    await deletePlayerRepository(playerId, sessionId);
 }

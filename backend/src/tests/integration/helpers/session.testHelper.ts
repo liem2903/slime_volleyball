@@ -16,8 +16,13 @@ export async function addSession(sessionRequest: SessionRequest) {
     return id
 }
 
-export async function addPlayer(session_id: String, id: String) {
-    await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, "FILLER MAN", "limefan190@gmail.com", "TOKEN HASH", "confirmed", session_id, new Date().toISOString()]);
+export async function addInterestedPlayer(session_id: String, id: String, email: string) {
+    await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, "FILLER MAN", email, "TOKEN HASH", "interested", session_id, new Date().toISOString()]);
+    return id;
+}
+
+export async function addWaitlistedPlayer(session_id: String, id: String, email: String) {
+    await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, "FILLER MAN", email, "TOKEN HASH", "waitlist", session_id, new Date().toISOString()]);
     return id;
 }
 
@@ -34,6 +39,12 @@ export async function getPlayers(session_id: String) {
     return rowCount;
 }
 
+export async function doesPlayerExist(id: String): Promise<Boolean> {
+    let { rowCount } = await pool.query(`SELECT * FROM attendances where id = $1`, [id]);
+
+    return rowCount == 1
+}
+
 export async function getPlayersAndWaitlist(session_id: String) {
     const { rows } = await pool.query(
         `SELECT 
@@ -48,4 +59,9 @@ export async function getPlayersAndWaitlist(session_id: String) {
         waitlisted_players: rows[0].waitlist,
         total_players: rows[0].counter
     }
+}
+
+export async function getPlayerId(session_id: string) {
+    const { rows } = await pool.query(`SELECT id FROM attendances WHERE session_id = $1`, [session_id]);
+    return rows[0].id;
 }

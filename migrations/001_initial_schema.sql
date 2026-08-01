@@ -13,6 +13,7 @@ CREATE TABLE sessions (
     cost_cents INTEGER NOT NULL,
     capacity INTEGER NOT NULL,
     court_name TEXT,
+    player_count INTEGER DEFAULT 0,
     state session_state NOT NULL DEFAULT 'unlocked'
 );
 

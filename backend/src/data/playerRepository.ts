@@ -1,23 +1,12 @@
-import { Player, PlayerResponse } from "../utility/types";
+import { Player, WaitList } from "../utility/types";
 import  { pool } from "../setup/data";
-import { NotFoundError } from "../errorHandling/error"
-import { DatabaseError, QueryResult } from "pg";
+import { DatabaseError } from "pg";
 import ErrorParse from '../errorHandling/DataBaseErrorParser';
-import { Console } from "console";
 
-export async function getAttendanceData(session_id: string, attendance_state: string, attendance_state_2: string | undefined, isTwoStates: boolean): Promise<Player[]> {
-    let data: QueryResult;
-
+export async function getPlayerRepository(session_id: string) {
     try {
-        if (isTwoStates) {
-            data = await pool.query(`SELECT id, name FROM attendances WHERE session_id = $1 AND (state = $2 OR state = $3)`, [ session_id, attendance_state, attendance_state_2]);
-        } else {
-            data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND state = $2`, [session_id, attendance_state]);
-        }
+        const data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND (state = $2 OR state = $3)`, [session_id, "interested", "confirmed"]);
 
-        if (data.rowCount == 0) {
-            throw new NotFoundError();
-        }
         let players: Player[] = data.rows.map((player) => {
             return {
                 id: player.id,
@@ -26,6 +15,25 @@ export async function getAttendanceData(session_id: string, attendance_state: st
         });
 
         return players;
+
+    } catch (err) {
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err
+    }
+}
+
+export async function getWaitlistRepository(session_id: string) {
+    try {
+        const data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND state = $2`, [session_id, "waitlist"]);
+
+        let waitlist: WaitList[] = data.rows.map((player) => {
+            return {
+                id: player.id,
+                name: player.name
+            }
+        });
+
+        return waitlist;
     } catch (err) {
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err
@@ -38,9 +46,44 @@ export async function createPlayerRepository(session_id: string, name: string, e
         const attendance_state = rowCount == 1 ? "interested" : "waitlist";
         await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [player_id, name, email, user_token_hash, attendance_state, session_id, joined_at]);
     } catch (err) {
-        console.log(err);
-
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err;
-    }   
+    }  
+}
+
+export async function deletePlayerRepository(playerId: string, sessionId: string) {
+    const client = await pool.connect();
+
+    try {
+        client.query('BEGIN');
+        // Check for player_count - and lock the session.
+        let {  rows  } = await client.query(`SELECT player_count, capacity FROM sessions WHERE id = $1 FOR UPDATE`, [sessionId]);
+
+        
+
+        const interested_players_count = rows[0].player_count;
+        const interested_player_capacity = rows[0].player_count
+        // Delete my player id.
+        await client.query(`DELETE FROM attendances WHERE id = $1`, [playerId]);
+        // Now check if I need to move waitlist and change player count.
+        if (interested_players_count == interested_player_capacity) {
+            let { rows } = await client.query(`SELECT id FROM attendances WHERE session_id = $1 AND state = $2 ORDER BY joined_at ASC LIMIT 1`, [sessionId, 'waitlist'])
+            // If there's a player in waitlist then I want to promote them.
+            if (rows[0]) {
+                await client.query(`UPDATE attendances SET state = $1 WHERE id = $2`, ['interested', rows[0].id]);
+            } else {
+                await client.query(`UPDATE sessions SET player_count = player_count - 1 WHERE id = $1`, [sessionId])
+            }
+        } else {
+            await client.query(`UPDATE sessions SET player_count = player_count - 1 WHERE id = $1`, [sessionId])
+        }
+ 
+        client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
+    }
 }

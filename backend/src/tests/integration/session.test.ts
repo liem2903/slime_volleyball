@@ -3,7 +3,7 @@ import { expect, test, describe } from "@jest/globals";
 import { SessionRequest } from "../../utility/types";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { deleteSession, findSession, addSession, addPlayer, deletePlayer} from './helpers/session.testHelper'
+import { deleteSession, findSession, addSession } from './helpers/session.testHelper'
 
 const mock_session_with_court: SessionRequest = {
     host_name: "Liem Phan",
