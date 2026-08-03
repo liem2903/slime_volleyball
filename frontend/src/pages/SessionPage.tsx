@@ -21,8 +21,6 @@ function SessionPage() {
     const fetchSessionData = async (sessionId: string | undefined) => {            
       let sessionInfo: SessionResult = (await axios.get(`/api/session/${sessionId}`)).data.data;
 
-      console.log(sessionInfo);
-
       let new_session_info: SessionResult = {...sessionInfo, date: convertDateToAbbreviation(sessionInfo.date), time_start: convertTimeToMeredian(sessionInfo.time_start), time_end: convertTimeToMeredian(sessionInfo.time_end)}
       setSessionInformation(new_session_info);
     }
@@ -101,7 +99,11 @@ function SessionPage() {
           onClose={() => setIsPopupOpen(false)}
           onSubmit={async (email, name) => {
             const player: PlayerResponse = (await axios.post('/api/players/create', {email, name, session_id: sessionId})).data.data;
-            setPlayers((prev) => [...prev, { id: player.id, name: player.name }]);
+            if (player.user_state === 'waitlist') {
+              setWaitlist((prev) => [...prev, { id: player.id, name: player.name }]);
+            } else {
+              setPlayers((prev) => [...prev, { id: player.id, name: player.name }]);
+            }
             setPlayerLink(player.user_link);
             setIsPopupOpen(false);
           }}

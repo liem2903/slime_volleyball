@@ -54,6 +54,7 @@ export type PlayerResponse = {
     session_id: string,
     joined_at: string,
     user_link: string,
+    user_state: string,
 }
 
 export type Player = {
