@@ -16,6 +16,7 @@ export async function createSession(req: Request, res: Response, next: NextFunct
 export async function getSession(req: Request, res: Response, next: NextFunction ) {
     try {
         const { sessionId } = req.params;
+        
         const sessionDetails = await getSessionBusiness(sessionId);
         res.status(200).json({data: sessionDetails, success: true});
     } catch (err) {

@@ -41,17 +41,27 @@ export async function getWaitlistRepository(session_id: string) {
 }
 
 export async function createPlayerRepository(session_id: string, name: string, email: string, joined_at: string, user_token_hash: string, player_id: string) {
+    const client = await pool.connect();
+    
     try {         
-        const { rowCount } = await pool.query(`UPDATE sessions SET player_count = player_count + 1 WHERE id = $1 AND player_count < capacity`, [session_id]);        
+        client.query('BEGIN');
+        const { rowCount } = await client.query(`UPDATE sessions SET player_count = player_count + 1 WHERE id = $1 AND player_count < capacity`, [session_id]);        
         const attendance_state = rowCount == 1 ? "interested" : "waitlist";
-        await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [player_id, name, email, user_token_hash, attendance_state, session_id, joined_at]);
+        await client.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [player_id, name, email, user_token_hash, attendance_state, session_id, joined_at]);
+        client.query('COMMIT');
+
+
+        return attendance_state;
     } catch (err) {
+        await client.query('ROLLBACK');
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err;
-    }  
+    } finally {
+        client.release();
+    }
 }
 
-export async function deletePlayerRepository(playerId: string, sessionId: string) {
+export async function deletePlayerRepository(encryptedToken: string, sessionId: string) {
     const client = await pool.connect();
 
     try {
@@ -59,12 +69,10 @@ export async function deletePlayerRepository(playerId: string, sessionId: string
         // Check for player_count - and lock the session.
         let {  rows  } = await client.query(`SELECT player_count, capacity FROM sessions WHERE id = $1 FOR UPDATE`, [sessionId]);
 
-        
-
         const interested_players_count = rows[0].player_count;
-        const interested_player_capacity = rows[0].player_count
+        const interested_player_capacity = rows[0].capacity;
         // Delete my player id.
-        await client.query(`DELETE FROM attendances WHERE id = $1`, [playerId]);
+        await client.query(`DELETE FROM attendances WHERE user_token_hash = $1`, [encryptedToken]);
         // Now check if I need to move waitlist and change player count.
         if (interested_players_count == interested_player_capacity) {
             let { rows } = await client.query(`SELECT id FROM attendances WHERE session_id = $1 AND state = $2 ORDER BY joined_at ASC LIMIT 1`, [sessionId, 'waitlist'])
@@ -79,11 +87,22 @@ export async function deletePlayerRepository(playerId: string, sessionId: string
         }
  
         client.query('COMMIT');
-    } catch (err) {
+    } catch (err) {        
         await client.query('ROLLBACK');
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err;
     } finally {
         client.release();
+    }
+}
+
+export async function getIdFromTokenRepository(encryptedToken: String) {
+    try {
+        const { rows } = await pool.query(`SELECT id FROM attendances WHERE user_token_hash = $1`, [encryptedToken]);
+        
+        return rows[0];
+    } catch (err) {
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err
     }
 }

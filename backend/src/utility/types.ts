@@ -1,3 +1,4 @@
+import { StringFormatParams } from "zod/v4/core";
 
 export type Links = {
     host_link: string;
@@ -55,6 +56,7 @@ export type PlayerResponse = {
     session_id: string,
     joined_at: string,
     user_link: string,
+    user_state: string,
 }
 
 export type Player = {

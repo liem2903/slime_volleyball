@@ -1,6 +1,7 @@
-import { createPlayerRepository, getPlayerRepository, getWaitlistRepository, deletePlayerRepository } from '../data/playerRepository';
+import { createPlayerRepository, getPlayerRepository, getWaitlistRepository, deletePlayerRepository, getIdFromTokenRepository } from '../data/playerRepository';
 import { generateSHA256 } from '../utility/helper';
-import { Player, PlayerResponse, WaitList } from '../utility/types'
+import { Player, PlayerResponse, WaitList } from '../utility/types';
+import crypto from 'crypto';
 
 export async function getPlayersBusiness(sessionId: string): Promise<Player[]> {
     return await getPlayerRepository(sessionId);
@@ -14,11 +15,11 @@ export async function createPlayerBusiness(session_id: string, name: string, ema
     let joined_at = new Date().toISOString();
     let user_token = crypto.randomUUID();
     let player_id = crypto.randomUUID();
-    let user_link = `http://localhost:5173/player/${user_token}`;
+    let user_link = `http://localhost:5173/player/${session_id}/${user_token}`;
     
     const user_token_hash = generateSHA256(user_token);
     
-    await createPlayerRepository(session_id, name, email, joined_at, user_token_hash, player_id);
+    let user_state = await createPlayerRepository(session_id, name, email, joined_at, user_token_hash, player_id);
 
     return {
         id: player_id,
@@ -27,9 +28,14 @@ export async function createPlayerBusiness(session_id: string, name: string, ema
         session_id,
         joined_at,
         user_link,
+        user_state
     }
 }
 
-export async function deletePlayerBusiness(playerId: string, sessionId: string) {
-    await deletePlayerRepository(playerId, sessionId);
+export async function deletePlayerBusiness(encryptedToken: string, sessionId: string) {
+    await deletePlayerRepository(encryptedToken, sessionId);
+}
+
+export async function getIdFromTokenBusiness(encryptedToken: string) {
+    await getIdFromTokenRepository(encryptedToken);
 }

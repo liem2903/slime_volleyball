@@ -4,7 +4,7 @@
   "description": "Express + TypeScript backend",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn src/setup/index.ts",
+    "dev": "ts-node-dev --respawn --exit-child --transpile-only src/setup/index.ts",
     "build": "tsc",
     "start": "node dist/setup/index.js",
     "test": "jest",

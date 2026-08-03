@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
-import { createPlayerBusiness, getWaitlistBusiness, getPlayersBusiness, deletePlayerBusiness } from '../business/playerBusiness';
+import { createPlayerBusiness, getWaitlistBusiness, getPlayersBusiness, deletePlayerBusiness, getIdFromTokenBusiness } from '../business/playerBusiness';
 import { PlayerResponse } from '../utility/types';
+import { generateSHA256 } from '../utility/helper';
 
 export async function getPlayers(req: Request, res: Response, next: NextFunction) {
     try {
@@ -36,10 +37,24 @@ export async function createPlayer(req: Request, res: Response, next: NextFuncti
 
 export async function deletePlayer(req: Request, res: Response, next: NextFunction) {
     try {
-        const { playerId, sessionId } = req.params;
-        await deletePlayerBusiness(playerId, sessionId); 
+        const { userToken, sessionId } = req.params;
+        
+        const encryptedToken = generateSHA256(userToken);
+
+        await deletePlayerBusiness(encryptedToken, sessionId); 
 
         res.status(200).json({success: true});
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function getIdFromToken(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { userToken } = req.params;
+        
+        let data = await getIdFromTokenBusiness(generateSHA256(userToken));
+        res.status(200).json({data, success: true});
     } catch (err) {
         next(err);
     }
