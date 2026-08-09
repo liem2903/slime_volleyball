@@ -14,6 +14,7 @@ const mock_session_with_court: SessionRequest = {
     court_name: "Olympic Park",
     date: "2026-07-10",
     host_email: "liemphan802@gmail.com",
+    host_is_player: true,
 }
 
 const mock_session_with_invalid_email: SessionRequest = {
@@ -25,6 +26,7 @@ const mock_session_with_invalid_email: SessionRequest = {
     date: "2026-07-10",
     host_email: "liemp80gmail.com",
     court_name: "Olympic Park",
+    host_is_player: true,
 }
 
 // Tests for session. 

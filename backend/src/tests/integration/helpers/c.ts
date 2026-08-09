@@ -45,8 +45,6 @@ export async function getSessionState(sessionId: String): Promise<String> {
 export async function addInterestedPlayer(session_id: String, id: String, email: string): Promise<playerReturn> {    
     const hash = crypto.randomUUID();
     await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, "FILLER MAN", email, generateSHA256(hash), "interested", session_id, new Date().toISOString()]);
-    await pool.query(`UPDATE sessions SET player_count = player_count + 1 WHERE id = $1`, [session_id]);
-    
     return {id, hash};
 }
 
@@ -58,10 +56,6 @@ export async function addWaitlistedPlayer(session_id: String, id: String, email:
 }
 
 export async function deletePlayer(player_id: String, session_id: String) {
-    console.log(player_id);
-    console.log(session_id);
-    console.log("HELLO");
-
     let { rows } = await pool.query('DELETE FROM attendances WHERE id = $1 RETURNING state', [player_id]);
 
     if (rows[0].state == "interested") {        
@@ -96,12 +90,11 @@ export async function getPlayersAndWaitlist(session_id: String) {
     }
 }
 
-export async function getPlayerId(session_id: String) {
+export async function getPlayerId(session_id: string) {
     const { rows } = await pool.query(`SELECT id FROM attendances WHERE session_id = $1`, [session_id]);
     return rows[0].id;
 }
 
-export async function getPlayerState(player_id: String) {
-    const { rows } = await pool.query(`SELECT state FROM attendances WHERE id = $1`, [player_id]);
-    return rows[0].state;
+export async function getPlayerState(player_id: string) {
+    const
 }

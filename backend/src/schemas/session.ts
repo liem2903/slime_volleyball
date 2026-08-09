@@ -8,5 +8,6 @@ export const SessionSchema = z.object({
     cost_cents: z.number().nonnegative(),
     host_email: z.email(),
     host_name: z.string().min(1),
-    court_name: z.string().min(1)
+    court_name: z.string().min(1),
+    host_is_player: z.boolean()
 });

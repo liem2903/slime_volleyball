@@ -7,8 +7,8 @@ import ErrorParse from '../errorHandling/DataBaseErrorParser';
 export async function createSessionData(session_data: SessionBusinessRequest) {
     try {
         await pool.query(
-        `INSERT INTO sessions (id, host_name, host_email, created_at, admin_token_hash, time_start, time_end, cost_cents, capacity, date, court_name)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        `INSERT INTO sessions (id, host_name, host_email, created_at, admin_token_hash, time_start, time_end, cost_cents, capacity, date, court_name, player_count)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
             session_data.id,
             session_data.host_name,
@@ -20,7 +20,8 @@ export async function createSessionData(session_data: SessionBusinessRequest) {
             session_data.cost_cents,
             session_data.capacity,
             session_data.date,
-            session_data.court_name
+            session_data.court_name,
+            session_data.player_count
         ]);
     } catch (err) {        
         if (err instanceof DatabaseError) ErrorParse(err); 
@@ -50,9 +51,15 @@ export async function getSessionData(session_id: string): Promise<SessionResult>
             capacity: session_data.capacity,
             court_name: session_data.court_name,
             date: session_data.date,
+            player_count: session_data.player_count,
         }   
     } catch (err) {
         if (err instanceof DatabaseError) ErrorParse(err)
         else throw err;
     }
+}
+
+export async function checkIsAdmin(session_id: string, admin_token_hash: string): Promise<Boolean> {
+    const { rowCount } = await pool.query('SELECT * FROM sessions WHERE id = $1 AND admin_token_hash = $2', [session_id, admin_token_hash]);
+    return rowCount == 1;
 }

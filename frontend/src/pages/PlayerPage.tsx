@@ -74,7 +74,7 @@ function PlayerPage() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-white to-white px-6 py-20">
       <p className="text-sm font-medium uppercase tracking-wide text-neutral-400">
-        {players.length}/{sessionInformation?.capacity} players
+        {sessionInformation?.player_count}/{sessionInformation?.capacity} players
       </p>
       <h1 className="mt-2 text-center text-5xl font-extrabold tracking-tight text-emerald-400">
         {sessionInformation?.court_name ?? `${sessionInformation?.host_name} session`}

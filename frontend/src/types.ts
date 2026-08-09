@@ -39,6 +39,7 @@ export type SessionResult = {
     capacity: number;
     court_name?: string;
     date: string;
+    player_count: number;
 }
 
 export type PlayerRequest = {

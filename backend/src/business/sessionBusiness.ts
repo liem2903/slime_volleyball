@@ -1,8 +1,8 @@
 import { createSessionData, getSessionData } from '../data/sessionRepository';
-import { Links, SessionBusinessRequest, SessionRequest, SessionResult } from '../utility/types'
+import { Links, SessionBusinessRequest, SessionResult } from '../utility/types'
 import { generateSHA256 } from '../utility/helper';
 
-export async function createSessionBusiness(capacity: number, date: string, startTime: string, endTime: string, price: number, email: string, name: string, courtName: string): Promise<Links> {
+export async function createSessionBusiness(capacity: number, date: string, startTime: string, endTime: string, price: number, email: string, name: string, courtName: string, hostIsPlayer: boolean): Promise<Links> {
     // So I need to generate session ID with code - and generate my two links.
     const created_at = new Date().toISOString();
     const time_start = new Date(`${date}T${startTime}`).toISOString();
@@ -28,6 +28,7 @@ export async function createSessionBusiness(capacity: number, date: string, star
         capacity,
         date,
         court_name: courtName,
+        player_count: hostIsPlayer ? 1 : 0,
     }
 
     await createSessionData(session_data);

@@ -59,8 +59,8 @@ function HomePage() {
       {isPopupOpen && (
         <JoinInfoPopup
           onClose={() => setIsPopupOpen(false)}
-          onSubmit={async (host_email, host_name, capacity, date, time_start, time_end, cost_cents, court_name) => {
-            const session_details = {capacity, date, time_start, time_end, cost_cents, host_email, host_name, court_name,};
+          onSubmit={async (host_email, host_name, capacity, date, time_start, time_end, cost_cents, court_name, host_is_player) => {
+            const session_details = {capacity, date, time_start, time_end, cost_cents, host_email, host_name, court_name, host_is_player,};
             const links: Links = (await axios.post("/api/session/create", session_details)).data.data;
             setSession(createPlaceholderSession(capacity, date, time_start, time_end, cost_cents, links.host_link, links.join_link, court_name))
             setIsPopupOpen(false)

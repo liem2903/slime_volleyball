@@ -15,6 +15,7 @@ export type SessionRequest = {
     capacity: number;
     date: string;
     court_name: string;
+    host_is_player: boolean;
 }
 
 export type SessionBusinessRequest = {
@@ -29,6 +30,7 @@ export type SessionBusinessRequest = {
     capacity: number,
     date: string,
     court_name: string,
+    player_count: number,
 }
 
 export type SessionResult = {
@@ -41,6 +43,7 @@ export type SessionResult = {
     capacity: number;
     court_name: string;
     date: string;
+    player_count: number;
 }
 
 export type PlayerRequest = {

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { playClickSound } from '../lib/sound'
 import PersonRow from '../components/PersonRow'
 import JoinSessionPopup from '../components/JoinSessionPopup'
+import SwapToWaitlistPopup from '../components/SwapToWaitlistPopup'
 import LinkRow from '../components/LinkRow'
 import { convertDateToAbbreviation, convertTimeToMeredian } from '../helpers/sessionHelpers';
 import type { WaitList, Player, SessionResult, PlayerResponse } from '../types'
@@ -15,6 +16,7 @@ function SessionPage() {
   const [ sessionInformation, setSessionInformation ] = useState<SessionResult>();
   const [ players, setPlayers ] = useState<Player[]>([]);
   const [ waitlist, setWaitlist ] = useState<WaitList[]>([]);
+  const [ swapCandidate, setSwapCandidate ] = useState<Player | null>(null);
   const { sessionId } = useParams<string>();
 
   useEffect(() => {
@@ -43,7 +45,7 @@ function SessionPage() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-white to-white px-6 py-20">
       <p className="text-sm font-medium uppercase tracking-wide text-neutral-400">
-        {players.length}/{sessionInformation?.capacity} players
+        {sessionInformation?.player_count}/{sessionInformation?.capacity} players
       </p>
       <h1 className="mt-2 text-center text-5xl font-extrabold tracking-tight text-emerald-400">
         {sessionInformation?.court_name ?? `${sessionInformation?.host_name} session`}
@@ -59,7 +61,11 @@ function SessionPage() {
           </h2>
           <div className="space-y-3">
             {players.map((player) => (
-              <PersonRow key={player.id} name={player.name} />
+              <PersonRow
+                key={player.id}
+                name={player.name}
+                onPromote={() => setSwapCandidate(player)}
+              />
             ))}
           </div>
         </div>
@@ -106,6 +112,25 @@ function SessionPage() {
             }
             setPlayerLink(player.user_link);
             setIsPopupOpen(false);
+          }}
+        />
+      )}
+
+      {swapCandidate && (
+        <SwapToWaitlistPopup
+          playerName={swapCandidate.name}
+          waitlist={waitlist}
+          onClose={() => setSwapCandidate(null)}
+          onSelect={(waitlistPlayer) => {
+            setPlayers((prev) => [
+              ...prev.filter((p) => p.id !== swapCandidate.id),
+              { id: waitlistPlayer.id, name: waitlistPlayer.name },
+            ]);
+            setWaitlist((prev) => [
+              ...prev.filter((p) => p.id !== waitlistPlayer.id),
+              { id: swapCandidate.id, name: swapCandidate.name },
+            ]);
+            setSwapCandidate(null);
           }}
         />
       )}

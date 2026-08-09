@@ -28,3 +28,8 @@ export class BadRequestError extends AppError {
     }
 }
 
+export class UnauthorisedRequest extends AppError {
+    constructor() {
+        super("User does not have authority to perform request", 401);
+    }
+}

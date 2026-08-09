@@ -15,6 +15,7 @@ function JoinInfoPopup({
     endTime: string,
     price: number,
     courtName: string,
+    hostIsPlayer: boolean,
   ) => void
 }) {
   const [email, setEmail] = useState('')
@@ -25,6 +26,7 @@ function JoinInfoPopup({
   const [endTime, setEndTime] = useState('')
   const [price, setPrice] = useState('')
   const [courtName, setCourtName] = useState('')
+  const [hostIsPlayer, setHostIsPlayer] = useState(true)
   const [error, setError] = useState('')
 
   const handleSubmit = () => {
@@ -48,7 +50,7 @@ function JoinInfoPopup({
       return
     }
     playClickSound()
-    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price), courtName.trim())
+    onSubmit(email, username, Number(capacity), date, startTime, endTime, Number(price), courtName.trim(), hostIsPlayer)
   }
 
   return (
@@ -170,6 +172,15 @@ function JoinInfoPopup({
               />
             </div>
           </div>
+          <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={hostIsPlayer}
+              onChange={(e) => setHostIsPlayer(e.target.checked)}
+              className="h-4 w-4 rounded border-neutral-300 text-emerald-400 focus:ring-emerald-200"
+            />
+            Count me as a player
+          </label>
         </div>
 
         {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
