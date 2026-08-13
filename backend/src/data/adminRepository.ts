@@ -1,9 +1,9 @@
 import { pool } from "../setup/data";
-import { BadRequestError, InvalidParametersError } from "../errorHandling/error"
+import { BadRequestError, InvalidParametersError, NotFoundError } from "../errorHandling/error"
 import { DatabaseError } from "pg";
 import ErrorParse from '../errorHandling/DataBaseErrorParser';
 
-export async function changeSessionStateRepository(state: string, sessionId: string) {
+export async function lockSessionRepository(state: string, sessionId: string) {
     const client = await pool.connect();
 
     try {
@@ -95,6 +95,43 @@ export async function swapStatesRepository(waitlistId: string, interestedId: str
         await client.query("COMMIT");
     } catch (err) {
         await client.query("ROLLBACK");
+
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
+    }
+}
+
+// Confirm player.
+
+// Check if all players have been confirmed --> IF HAVE THEN SET SESSION TO COMPLETE.
+
+export async function confirmPlayerRepository(playerId: string, sessionId: string) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows: sessionData } = await client.query('SELECT state, id FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+
+        if (sessionData.length == 0) throw new InvalidParametersError();
+        if (sessionData[0].state != "locked") throw new BadRequestError("Player is not in locked session", "State Error");
+
+        const { rows: playerData } = await client.query('SELECT state FROM attendances WHERE id = $1 AND session_id = $2', [playerId, sessionId]);
+
+        if (playerData.length == 0) throw new NotFoundError();
+        if (playerData[0].state != "payment_pending") throw new BadRequestError("Player is not in locked session", "State Error");
+
+        await client.query('UPDATE attendances SET state = $1 WHERE id = $2', ["confirmed", playerId]);
+
+        if ((await client.query('SELECT id FROM attendances WHERE session_id = $1 AND state = $2', [sessionId, "payment_pending"])).rows.length == 0) {            
+            await client.query('UPDATE sessions SET state = $1 WHERE id = $2', ["completed", sessionId])
+        }
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
 
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err;

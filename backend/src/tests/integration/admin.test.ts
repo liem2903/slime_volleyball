@@ -3,7 +3,9 @@ import { expect, test, describe, beforeEach, afterEach } from "@jest/globals";
 import { SessionRequest } from "../../utility/types";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer } from './helpers/session.testHelper'
+import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer } from './helpers/session.testHelper'
+import e from "express";
+import expectCookies from "supertest/lib/cookies";
 
 const mock_session_with_court: SessionRequest = {
     host_name: "Liem Phan",
@@ -47,7 +49,7 @@ describe("Patching a session state", () => {
         const {id: player_2_id } = await addInterestedPlayer(id, crypto.randomUUID(), "interest@gmail.com");
 
         try {
-            let res = await request(app).patch(`/api/admin/${id}/${hash}/changeSessionState`).send({state: 'locked'});
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/lockSession`).send({state: 'locked'});
             
             expect(res.status).toBe(200);
             expect(await getSessionState(id)).toBe('locked');
@@ -62,7 +64,7 @@ describe("Patching a session state", () => {
         const {id, hash} = await addAdminSession(mock_session_with_court);
 
         try {
-            let res = await request(app).patch(`/api/admin/${id}/${hash}/changeSessionState`).send({state: 'unlocked'});
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/lockSession`).send({state: 'unlocked'});
 
             expect(res.status).toBe(400);
             expect(res.body.message).toBe("Session is already in the suggested changed state");
@@ -75,7 +77,7 @@ describe("Patching a session state", () => {
         const { id } = await addAdminSession(mock_session_with_court);
 
         try {
-            let res = await request(app).patch(`/api/admin/${id}/FAKE_ID/changeSessionState`).send({state: 'locked'});
+            let res = await request(app).patch(`/api/admin/${id}/FAKE_ID/lockSession`).send({state: 'locked'});
 
             expect(res.status).toBe(401);
             expect(await getSessionState(id)).toBe("unlocked");
@@ -88,7 +90,7 @@ describe("Patching a session state", () => {
         const {id, hash} = await addAdminSession(mock_session_with_court);
 
         try {
-            const res = await request(app).patch(`/api/admin/${id}/${hash}/changeSessionState`).send({state: 'orange'});
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/lockSession`).send({state: 'orange'});
             
             expect(res.status).toBe(400);
             expect(await getSessionState(id)).toBe('unlocked');
@@ -103,7 +105,7 @@ describe("Patching a session state", () => {
         const {id: player_3_id } = await addInterestedPlayer(id, crypto.randomUUID(), "interest2@gmail.com");
 
         try {
-            const res = await request(app).patch(`/api/admin/${id}/${hash}/changeSessionState`).send({state: 'locked'});
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/lockSession`).send({state: 'locked'});
 
             expect(res.status).toBe(200);
             expect(await getPricePerPlayer(id)).toBe(67);
@@ -326,25 +328,124 @@ describe("Swapping States", () => {
     });
 })
 
-describe("Unlocking locked session", () => {
-    test("Happy Version - you can unlock", () => {
+// describe("Unlocking locked session", () => {
+//     test("Happy Version - you can unlock", () => {
 
-    })
+//     })
 
-    test("Unable to lock if player has paid already", () => {
+//     test("Unable to lock if player has paid already", () => {
         
-    });
-});
+//     });
+// });
 
 describe("Marking someone as paid", () => {
-    test("Happy Version - successfully marked as paid", () => {
+    let id: String;
+    let hash: String;
+    let player_id_1: String;
 
+    beforeEach(async () => {
+        ({id, hash} = await addAdminSession(mock_session_with_court_capacity_2));  
+        
+        ({id: player_id_1} = await addPaymentPendingPlayer(id, crypto.randomUUID(), "lime123@gmail.com"));
+    })
+    
+    test("Happy Version - successfully marked as paid", async () => {
+        await lockSession(id);
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/${player_id_1}/confirm`);
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerState(player_id_1)).toBe("confirmed");
+        } finally {
+            deletePlayer(player_id_1, id);
+        }
     });
 
-    test("Player marked as paid is waitlist", () => {
+    test("Player marked as paid is not in correct state", async () => {
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/${player_id_1}/confirm`);
 
+            expect(res.status).toBe(400);
+            expect(res.body.message).toBe("Player is not in locked session");
+            expect(await getPlayerState(player_id_1)).toBe("payment_pending");
+        } finally {
+            deletePlayer(player_id_1, id);
+        }
     });
+
+    test("Session is complete after all players have paid", async () => {
+        await lockSession(id);
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/${player_id_1}/confirm`);
+
+            expect(res.status).toBe(200);
+            expect(await getSessionState(id)).toBe("completed");
+        } finally {
+            deletePlayer(player_id_1, id);
+        }
+    });
+
+    test("Player does not exist", async () => {
+        await lockSession(id);
+        const player_filler_id = crypto.randomUUID();
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/${player_filler_id}/confirm`);
+
+            expect(res.status).toBe(404);
+        } finally {
+            deletePlayer(player_id_1, id);
+        }
+    })
+
+    test("Player is not payment_pending", async () => {
+        await lockSession(id);
+
+        const { id: interested_player } = await addInterestedPlayer(id, crypto.randomUUID(), "12345@gmail.com");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/${interested_player}/confirm`);
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(interested_player, id);
+            await deletePlayer(player_id_1, id);
+        }
+    })
 })
 
-// When someone leaves and session is locked - player should be allowed to leave.
-// If there is a waitlisted player - then they should be unwaitlisted. 
+describe("Race Condition for Updating Player", () => {
+    test("2 Players Concurrently paying - only two interested players. Session should update", async () => {
+        
+        for (let i = 0; i < 5; i += 1) {
+            const {id, hash} = await addAdminSession(mock_session_with_court_capacity_2);
+
+            await lockSession(id);
+
+            const { id: player_1_id } = await addPaymentPendingPlayer(id, crypto.randomUUID(), "123@gmail.com");
+            const { id: player_2_id } = await addPaymentPendingPlayer(id, crypto.randomUUID(), "133@gmail.com");
+
+            const players = [player_1_id, player_2_id];
+
+            try {
+                const player_res = await Promise.all(players.map(async (player_id) => {
+                    return request(app).patch(`/api/admin/${id}/${hash}/${player_id}/confirm`);
+                }));
+
+                for (let res of player_res) {
+                    console.error(res.body);
+                }
+
+                expect(await getPlayerState(player_1_id)).toBe("confirmed");
+                expect(await getPlayerState(player_2_id)).toBe("confirmed");
+                expect(await getSessionState(id)).toBe("completed");
+            } finally {
+                await deletePlayer(player_1_id, id);
+                await deletePlayer(player_2_id, id);
+                await deleteSession(id);
+            }
+        }
+    })
+})

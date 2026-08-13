@@ -1,7 +1,7 @@
 import { expect, test, describe, beforeAll } from "@jest/globals";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { deleteSession, addSession, addInterestedPlayer, deletePlayer, getPlayerCount, getPlayersAndWaitlist, getPlayerId, doesPlayerExist, addWaitlistedPlayer, lockSession, getPlayerState} from './helpers/session.testHelper'
+import { deleteSession, addSession, addInterestedPlayer, deletePlayer, getPlayerCount, getPlayersAndWaitlist, getPlayerId, doesPlayerExist, addWaitlistedPlayer, lockSession, getPlayerState, getPricePerPlayer} from './helpers/session.testHelper'
 import { PlayerRequest, SessionRequest } from "../../utility/types";
 
 const mock_session_with_court: SessionRequest = {
@@ -52,6 +52,19 @@ const mock_session_with_two_capacity: SessionRequest = {
     host_is_player: true,
 } 
 
+const mock_session_with_three_capacity: SessionRequest = {
+    host_name: "Jacob Phan",
+    time_start: "10:26:00",
+    time_end: "11:36:00",
+    cost_cents: 200,
+    capacity: 4,
+    court_name: "Olympic Park",
+    date: "2026-07-10",
+    host_email: "liemphan802@gmail.com",
+    host_is_player: true,
+} 
+
+
 const mock_session_host_not_player: SessionRequest = {
     host_name: "Jacob Phan",
     time_start: "10:26:00",
@@ -90,7 +103,7 @@ describe("Getting a player", () => {
             await deletePlayer(player.id, session_id);
             await deleteSession(session_id);
         }
-    })
+    });
 });
 
 describe("POST: Creating a player - happy path", () => {
@@ -290,5 +303,25 @@ describe("DELETE: Player Drops Out", () => {
             await deleteSession(session_id)
         }
     });
+
+    test("Player leaves when session is locked with no waitlist. Price remains same.", async () => {
+        const session_id = await addSession(mock_session_with_two_capacity);
+        const shrivel_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan803@gmail.com");
+        const bella_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan807@gmail.com");
+        const ben_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan804@gmail.com");
+        
+        try {
+            await lockSession(session_id);
+            expect(await getPricePerPlayer(session_id)).toBe(50);
+
+            const res = await request(app).delete(`/api/players/delete/${session_id}/${shrivel_player.hash}`);
+
+            expect(res.status).toBe(200);
+            expect(await getPricePerPlayer(session_id)).toBe(50);
+        } finally {
+            await deletePlayer(bella_player.id, session_id);
+            await deletePlayer(ben_player.id, session_id);
+        }
+    })
 });
  

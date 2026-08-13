@@ -91,6 +91,7 @@ describe("Getting a session", () => {
     });
 });
 
-describe("Session marked as completed", () => {
+
+describe("Session marked as completed once all players have paid", () => {
 
 });

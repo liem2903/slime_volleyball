@@ -19,7 +19,7 @@ export async function deleteSession(sessionId: String) {
 
 export async function addSession(sessionRequest: SessionRequest) {
     const id = crypto.randomUUID();
-    await pool.query(`INSERT INTO sessions (id, host_name, host_email, created_at, admin_token_hash, time_start, time_end, cost_cents, capacity, date, court_name, player_count) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,    [id, sessionRequest.host_name, sessionRequest.host_email, new Date().toISOString(), "hello", "2026-07-10T01:36:00.000Z", "2026-07-10T01:36:00.000Z", 100, sessionRequest.capacity, "2026-07-10T01:36:00.000Z", "Olympic Park", 1])
+    await pool.query(`INSERT INTO sessions (id, host_name, host_email, created_at, admin_token_hash, time_start, time_end, cost_cents, capacity, date, court_name, player_count) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,    [id, sessionRequest.host_name, sessionRequest.host_email, new Date().toISOString(), "hello", "2026-07-10T01:36:00.000Z", "2026-07-10T01:36:00.000Z", sessionRequest.cost_cents, sessionRequest.capacity, "2026-07-10T01:36:00.000Z", "Olympic Park", 1])
     return id
 }
 
@@ -50,6 +50,14 @@ export async function getPricePerPlayer(sessionId: String) {
 export async function addInterestedPlayer(session_id: String, id: String, email: string): Promise<playerReturn> {    
     const hash = crypto.randomUUID();
     await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, "FILLER MAN", email, generateSHA256(hash), "interested", session_id, new Date().toISOString()]);
+    await pool.query(`UPDATE sessions SET player_count = player_count + 1 WHERE id = $1`, [session_id]);
+    
+    return {id, hash};
+}
+
+export async function addPaymentPendingPlayer(session_id: String, id: String, email: string) {
+    const hash = crypto.randomUUID();
+    await pool.query(`INSERT INTO attendances (id, name, email, user_token_hash, state, session_id, joined_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, "FILLER MAN", email, generateSHA256(hash), "payment_pending", session_id, new Date().toISOString()]);
     await pool.query(`UPDATE sessions SET player_count = player_count + 1 WHERE id = $1`, [session_id]);
     
     return {id, hash};
@@ -112,6 +120,6 @@ export async function getPlayerState(player_id: String) {
 }
 
 export async function lockSession(id: String) {
-    await pool.query('UPDATE sessions SET state = $1 WHERE id = $2', ['locked', id]);
-    
+    const { rows } = await pool.query('UPDATE sessions SET state = $1 WHERE id = $2 RETURNING player_count, cost_cents', ['locked', id]);
+    await pool.query('UPDATE sessions SET price_per_player = $1 WHERE id = $2', [Math.ceil(rows[0].cost_cents / rows[0].player_count), id]);
 }
