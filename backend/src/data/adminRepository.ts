@@ -1,18 +1,37 @@
 import { pool } from "../setup/data";
-import { BadRequestError } from "../errorHandling/error"
+import { BadRequestError, InvalidParametersError } from "../errorHandling/error"
 import { DatabaseError } from "pg";
 import ErrorParse from '../errorHandling/DataBaseErrorParser';
 
 export async function changeSessionStateRepository(state: string, sessionId: string) {
-    const { rowCount } = await pool.query('SELECT * FROM sessions WHERE id = $1 AND state = $2', [sessionId, state]);
-
-    if (rowCount == 1) throw new BadRequestError("Session is already in the suggested changed state", "REDUNDANT CHANGE");
+    const client = await pool.connect();
 
     try {
-        await pool.query('UPDATE sessions SET state = $1 WHERE id = $2', [state, sessionId]);
+        client.query('BEGIN');
+
+        const { rows: broken_session } = (await client.query('SELECT * FROM sessions WHERE id = $1 AND state = $2', [sessionId, state]))
+
+        if (broken_session.length != 0) throw new BadRequestError("Session is already in the suggested changed state", "REDUNDANT CHANGE");
+        
+        const { rows: session_data } = (await client.query('SELECT cost_cents, player_count FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]))
+
+        if (session_data[0].player_count < 2) throw new BadRequestError("Not enough players to lock", "NOT ENOUGH PLAYERS"); 
+
+        await client.query('UPDATE sessions SET state = $1 WHERE id = $2', [state, sessionId]);
+
+        // I want to set the price - so I have to calculate COST_CENTS / PLAYER_COUNT
+        const price : Number = Math.ceil(((Number((session_data[0].cost_cents)) / Number(session_data[0].player_count))));
+        
+        await client.query('UPDATE sessions SET price_per_player = $1 WHERE id = $2', [price, sessionId]);
+        await client.query('UPDATE attendances SET state = $1 WHERE session_id = $2 AND state = $3', ["payment_pending", sessionId, "interested"] );
+        await client.query('COMMIT');
     } catch (err) {
+        await client.query('ROLLBACK');
+
         if (err instanceof DatabaseError) ErrorParse(err)
         else throw err;
+    } finally {
+        client.release();
     }
 }
 
@@ -21,10 +40,13 @@ export async function kickPlayerRepository(playerId: string, sessionId: string) 
 
     try {
         await client.query('BEGIN');
-        let { rows } = await client.query('SELECT player_count, capacity FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+        const { rows: session_data } = await client.query('SELECT player_count, capacity, state FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
 
-        const player_count = rows[0].player_count;
-        const capacity =  rows[0].capacity;
+        if (session_data.length === 0 || (await client.query('SELECT * FROM attendances WHERE id = $1', [playerId])).rows.length === 0) throw new InvalidParametersError();
+        if (session_data[0].state != "unlocked") throw new BadRequestError("Session state is not unlocked", "WRONG STATE");
+
+        const player_count = session_data[0].player_count;
+        const capacity =  session_data[0].capacity;
 
         if (player_count == capacity) {
             let { rows } = await client.query(`SELECT id FROM attendances WHERE session_id = $1 AND state = $2 ORDER BY joined_at ASC LIMIT 1`, [sessionId, 'waitlist'])
@@ -54,17 +76,21 @@ export async function kickPlayerRepository(playerId: string, sessionId: string) 
 }
 
 
-export async function swapStatesRepository(waitlistId: string, interestedId: string) {
+export async function swapStatesRepository(waitlistId: string, interestedId: string, sessionId: string) {
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
-        // SWAP. SO LOCK IN BOTH ATTENDANCES FIRST. THEN SWAP. THEN BOOM.
-        await client.query(`SELECT * FROM attendances WHERE id = $1 OR id = $2 FOR UPDATE`, [waitlistId, interestedId]);
-        await client.query('UPDATE attendances SET state = $1 WHERE id = $2', ["interested", waitlistId]);
+         
+        const { rows: waitlistedPlayer } = await client.query(`SELECT state FROM attendances WHERE id = $1 FOR UPDATE`, [waitlistId]);
+        const { rows: interestedPlayer } = await client.query(`SELECT state FROM attendances WHERE id = $1 FOR UPDATE`, [interestedId]);
 
+        if (waitlistedPlayer[0].length === 0 || interestedPlayer[0].length === 0 || waitlistedPlayer[0].state != "waitlist" || interestedPlayer[0].state != "interested") throw new InvalidParametersError(); 
+
+        if (((await client.query('SELECT state FROM sessions WHERE id = $1', [sessionId])).rows[0].state) != "unlocked") throw new BadRequestError("Locked state can not swap players", "Wrong State");
+
+        await client.query('UPDATE attendances SET state = $1 WHERE id = $2', ["interested", waitlistId]);
         await client.query('UPDATE attendances SET state = $1 WHERE id = $2', ["waitlist", interestedId]);
-        console.log("SSS");
 
         await client.query("COMMIT");
     } catch (err) {

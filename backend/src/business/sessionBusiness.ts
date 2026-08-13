@@ -16,6 +16,8 @@ export async function createSessionBusiness(capacity: number, date: string, star
     const admin_link = `http://localhost:5173/session/${session_id}/${opaque_token}`;
     const admin_token_hash = generateSHA256(opaque_token);
 
+    const cost_cents = Math.round((Number(price) * 100)); 
+
     const session_data: SessionBusinessRequest = {
         id: session_id,
         host_name: name,
@@ -24,7 +26,7 @@ export async function createSessionBusiness(capacity: number, date: string, star
         admin_token_hash,
         time_start,
         time_end,
-        cost_cents: price,
+        cost_cents,
         capacity,
         date,
         court_name: courtName,

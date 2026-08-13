@@ -1,13 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { changeSessionState, kickPlayer, swapStates } from '../controllers/adminController';
 
+import { validate } from '../middleware/sessionMiddleware'
+import { ChangeStateSchema } from '../schemas/changeSessionState';
+
 const router = Router({mergeParams: true});
 
 router.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
-router.patch('/changeSessionState', changeSessionState);
+router.patch('/changeSessionState', validate(ChangeStateSchema), changeSessionState);
 router.delete('/:playerId/deletePlayer', kickPlayer);
 router.patch('/:waitlistId/:interestedId/swapStates', swapStates);
 

@@ -6,8 +6,6 @@ export async function changeSessionState(req: Request, res: Response, next: Next
         const { state } = req.body;
         const { sessionId } = req.params;
 
-        console.log(req.params);
-
         await changeSessionStateBusiness(state, sessionId);
         res.status(200).json({success: true});
     } catch (err) {
@@ -28,8 +26,8 @@ export async function kickPlayer(req: Request, res: Response, next: NextFunction
 
 export async function swapStates(req: Request, res: Response, next: NextFunction) {
     try {
-        const { waitlistId, interestedId } = req.params;
-        await swapStatesBusiness(waitlistId, interestedId);
+        const { waitlistId, interestedId, sessionId } = req.params;
+        await swapStatesBusiness(waitlistId, interestedId, sessionId);
 
         res.status(200).json({success: true});
     } catch (err) {

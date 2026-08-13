@@ -14,6 +14,7 @@ CREATE TABLE sessions (
     capacity INTEGER NOT NULL,
     court_name TEXT,
     player_count INTEGER,
+    price_per_player INTEGER,
     state session_state NOT NULL DEFAULT 'unlocked'
 );
 

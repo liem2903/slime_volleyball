@@ -8,6 +8,6 @@ export async function kickPlayerBusiness(playerId: string, sessionId: string) {
     await kickPlayerRepository(playerId, sessionId);
 }
 
-export async function swapStatesBusiness(waitlistId: string, interestedId: string) {
-    await swapStatesRepository(waitlistId, interestedId);
+export async function swapStatesBusiness(waitlistId: string, interestedId: string, sessionId: string) {
+    await swapStatesRepository(waitlistId, interestedId, sessionId);
 }

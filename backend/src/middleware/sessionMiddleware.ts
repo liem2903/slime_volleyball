@@ -42,11 +42,3 @@ export async function check_is_admin(req: Request, res: Response, next: NextFunc
     req.params = {sessionId};
     next();
 }
-
-export async function decodedAdminId(req: Request, res: Response, next: NextFunction) {
-    let { adminId } = req.params;
-    adminId = generateSHA256(adminId);
-
-    req.params.adminId = adminId;
-    next();
-}

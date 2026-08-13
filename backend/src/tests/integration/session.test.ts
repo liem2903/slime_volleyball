@@ -50,7 +50,7 @@ describe("Posting a session", () => {
                 host_name: "Liem Phan",
                 time_start: new Date("2026-07-10T00:26:00.000Z"),
                 time_end: new Date("2026-07-10T01:36:00.000Z"),
-                cost_cents: 200,
+                cost_cents: 20000,
                 capacity: 20,
                 court_name: "Olympic Park",
                 date: new Date("2026-07-09T14:00:00.000Z")
@@ -89,4 +89,8 @@ describe("Getting a session", () => {
             await deleteSession(session_id);
         }
     });
+});
+
+describe("Session marked as completed", () => {
+
 });

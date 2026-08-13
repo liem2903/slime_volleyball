@@ -1,7 +1,7 @@
 import { expect, test, describe, beforeAll } from "@jest/globals";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { deleteSession, addSession, addInterestedPlayer, deletePlayer, getPlayers, getPlayersAndWaitlist, getPlayerId, doesPlayerExist, addWaitlistedPlayer} from './helpers/session.testHelper'
+import { deleteSession, addSession, addInterestedPlayer, deletePlayer, getPlayerCount, getPlayersAndWaitlist, getPlayerId, doesPlayerExist, addWaitlistedPlayer, lockSession, getPlayerState} from './helpers/session.testHelper'
 import { PlayerRequest, SessionRequest } from "../../utility/types";
 
 const mock_session_with_court: SessionRequest = {
@@ -64,6 +64,18 @@ const mock_session_host_not_player: SessionRequest = {
     host_is_player: false,
 } 
 
+const mock_session_host_not_full: SessionRequest = {
+    host_name: "Jacob Phan",
+    time_start: "10:26:00",
+    time_end: "11:36:00",
+    cost_cents: 200,
+    capacity: 20,
+    court_name: "Olympic Park",
+    date: "2026-07-10",
+    host_email: "liemphan802@gmail.com",
+    host_is_player: false,
+} 
+
 // Tests for GET Player and GET WAITLIST --> should be same thing.
 describe("Getting a player", () => {
     test("Happy Pathway", async () => {
@@ -112,7 +124,7 @@ describe("POST: Creating a player - happy path", () => {
         }
 
         try {
-            expect(await getPlayers(session_id)).toBe(3);
+            expect(await getPlayerCount(session_id)).toBe(3);
         } finally {
             for (const res of player) {
                 await deletePlayer(res.body.data.id, session_id);
@@ -134,7 +146,7 @@ describe("POST: Creating a player - happy path", () => {
         const res = await (request(app).post('/api/players/create').send(ben_player));
        
         try {
-            expect(await getPlayers(session_id)).toBe(1);
+            expect(await getPlayerCount(session_id)).toBe(1);
         } finally {
             await deletePlayer(res.body.data.id, session_id);
             await deleteSession(session_id);
@@ -171,6 +183,27 @@ describe("POST: Creating a player - happy path", () => {
 
         await deleteSession(session_id);
     })
+
+    test("Player Join when session is locked", async () => {
+        const session_id = await addSession(mock_session_host_not_full);
+
+        const player = {
+            name: "Ben",
+            email: "ben@gmail.com",
+            session_id
+        };
+
+        await lockSession(session_id);
+        const res = await request(app).post(`/api/players/create`).send(player);
+
+        try {   
+            expect(res.status).toBe(200);
+            expect(await getPlayerState(res.body.data.id)).toBe("waitlist");
+        } finally {
+            deletePlayer(res.body.data.id, session_id);
+            deleteSession(session_id);
+        }
+    })
 })
 
 // Player Drop Out.
@@ -182,9 +215,7 @@ describe("DELETE: Player Drops Out", () => {
         try {
             const res = await request(app).delete(`/api/players/delete/${session_id}/${player.hash}`);
             expect(res.status).toBe(200);
-            expect(await getPlayers(session_id)).toEqual(0);
-        } catch(err) {
-            await deletePlayer(player.id, session_id);
+            expect(await getPlayerCount(session_id)).toEqual(0);
         } finally {
             await deleteSession(session_id);
         }
@@ -196,9 +227,9 @@ describe("DELETE: Player Drops Out", () => {
         const shrivel_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan803@gmail.com");
         
         await request(app).delete(`/api/players/delete/${session_id}/${winston_player.hash}`);
-        expect(await getPlayers(session_id)).toBe(1);
+        expect(await getPlayerCount(session_id)).toBe(1);
         await request(app).delete(`/api/players/delete/${session_id}/${shrivel_player.hash}`);
-        expect(await getPlayers(session_id)).toBe(0);
+        expect(await getPlayerCount(session_id)).toBe(0);
         await deleteSession(session_id);
     });
 
@@ -221,7 +252,7 @@ describe("DELETE: Player Drops Out", () => {
                     expect(r.status).toBe(200);
                 }
 
-                expect(await getPlayers(session_id)).toBe(1);
+                expect(await getPlayerCount(session_id)).toBe(1);
                 expect(await getPlayerId(session_id)).toEqual(ben_player.id);
             } catch (err) {
                 for (const id of deleting_ids) {
@@ -235,6 +266,29 @@ describe("DELETE: Player Drops Out", () => {
         }
 
         await deleteSession(session_id);
+    });
+
+    test("Player leaves when session is locked with waitlist", async () => {
+        const session_id = await addSession(mock_session_with_two_capacity);
+        const shrivel_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan803@gmail.com");
+        const bella_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan807@gmail.com");
+        const ben_player = await addWaitlistedPlayer(session_id, crypto.randomUUID(), "liemphan804@gmail.com");
+
+        try {
+            await lockSession(session_id);
+
+            const res = await request(app).delete(`/api/players/delete/${session_id}/${shrivel_player.hash}`);
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerState(ben_player.id)).toBe("payment_pending");
+        } catch (err) {
+            await deletePlayer(shrivel_player.id, session_id);
+            throw err;
+        } finally {
+            await deletePlayer(bella_player.id, session_id);
+            await deletePlayer(ben_player.id, session_id);
+            await deleteSession(session_id)
+        }
     });
 });
  
