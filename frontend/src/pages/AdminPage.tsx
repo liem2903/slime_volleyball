@@ -3,7 +3,9 @@ import { useParams } from 'react-router-dom'
 import axios from 'axios'
 import { playClickSound } from '../lib/sound'
 import PersonRow from '../components/PersonRow'
-import { convertDateToAbbreviation, convertTimeToMeredian } from '../helpers/sessionHelpers'
+import SwapToWaitlistPopup from '../components/SwapToWaitlistPopup'
+import ChangeCapacityPopup from '../components/ChangeCapacityPopup'
+import { convertDateToAbbreviation, convertTimeToMeredian, formatCentsToDollars } from '../helpers/sessionHelpers'
 import type { Player, WaitList, SessionResult } from '../types'
 
 function AdminPage() {
@@ -13,10 +15,14 @@ function AdminPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [waitlist, setWaitlist] = useState<WaitList[]>([])
   const [kickError, setKickError] = useState<string | null>(null)
+  const [swapCandidate, setSwapCandidate] = useState<Player | null>(null)
+  const [swapError, setSwapError] = useState<string | null>(null)
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
-  const [paymentStarted, setPaymentStarted] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+
+  const [showCapacityPopup, setShowCapacityPopup] = useState(false)
+  const [capacityError, setCapacityError] = useState<string | null>(null)
 
   const fetchSessionData = async (sessionId: string | undefined) => {
     const sessionInfo: SessionResult = (await axios.get(`/api/session/${sessionId}`)).data.data
@@ -58,15 +64,29 @@ function AdminPage() {
     }
   }
 
+  const handleSwap = async (waitlistPlayer: WaitList) => {
+    if (!swapCandidate) return
+
+    playClickSound()
+    setSwapError(null)
+
+    try {
+      await axios.patch(`/api/admin/${sessionId}/${adminId}/${waitlistPlayer.id}/${swapCandidate.id}/swapStates`)
+      await Promise.all([fetchPlayers(sessionId), fetchWaitlist(sessionId)])
+      setSwapCandidate(null)
+    } catch {
+      setSwapError('Something went wrong swapping that player. Please try again.')
+    }
+  }
+
   const handleMoveToPayment = async () => {
     playClickSound()
     setIsProcessingPayment(true)
     setPaymentError(null)
 
     try {
-      // NOTE: not yet implemented server-side — proposed hook for changeSessionToPay.
-      await axios.post(`/api/admin/${sessionId}/${adminId}/changeSessionState`)
-      setPaymentStarted(true)
+      await axios.patch(`/api/admin/${sessionId}/${adminId}/lockSession`, { state: 'locked' })
+      await fetchSessionData(sessionId)
     } catch {
       setPaymentError('Something went wrong. Please try again.')
     } finally {
@@ -74,15 +94,48 @@ function AdminPage() {
     }
   }
 
+  const handleChangeCapacity = async (newCapacity: number) => {
+    setCapacityError(null)
+
+    try {
+      await axios.patch(`/api/admin/${sessionId}/${adminId}/changeCapacity`, { capacity: newCapacity })
+      await Promise.all([fetchSessionData(sessionId), fetchPlayers(sessionId), fetchWaitlist(sessionId)])
+      setShowCapacityPopup(false)
+    } catch {
+      setCapacityError('Something went wrong changing the capacity. Please try again.')
+    }
+  }
+
+  const isLocked = sessionInformation?.state === 'locked'
+
   const pricePerPerson =
-    sessionInformation && sessionInformation.player_count > 0
-      ? `$${(sessionInformation.cost_cents / sessionInformation.player_count / 100).toFixed(2)} per person`
-      : 'No confirmed players yet'
+    isLocked && sessionInformation?.price_per_player != null
+      ? `${formatCentsToDollars(sessionInformation.price_per_player)} per person`
+      : sessionInformation && sessionInformation.player_count > 0
+        ? `$${(sessionInformation.cost_cents / sessionInformation.player_count / 100).toFixed(2)} per person`
+        : 'No confirmed players yet'
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-white to-white px-6 py-20">
-      <p className="text-sm font-medium uppercase tracking-wide text-neutral-400">
+      <p className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-neutral-400">
         {sessionInformation?.player_count}/{sessionInformation?.capacity} players
+        {isLocked && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold normal-case tracking-normal text-amber-600">
+            🔒 Locked
+          </span>
+        )}
+        {!isLocked && sessionInformation && (
+          <button
+            onClick={() => {
+              playClickSound()
+              setCapacityError(null)
+              setShowCapacityPopup(true)
+            }}
+            className="cursor-pointer rounded-full border border-neutral-200 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-neutral-500 transition-colors duration-150 hover:border-emerald-300 hover:text-emerald-600"
+          >
+            Edit capacity
+          </button>
+        )}
       </p>
       <h1 className="mt-2 text-center text-5xl font-extrabold tracking-tight text-emerald-400">
         {sessionInformation?.court_name ?? `${sessionInformation?.host_name} session`}
@@ -99,7 +152,12 @@ function AdminPage() {
           </h2>
           <div className="space-y-3">
             {players.map((player) => (
-              <PersonRow key={player.id} name={player.name} onRemove={() => handleKick(player.id)} />
+              <PersonRow
+                key={player.id}
+                name={player.name}
+                onRemove={() => handleKick(player.id)}
+                onPromote={!isLocked ? () => setSwapCandidate(player) : undefined}
+              />
             ))}
           </div>
         </div>
@@ -121,11 +179,14 @@ function AdminPage() {
       </div>
 
       {kickError && <p className="mt-6 text-sm text-rose-500">{kickError}</p>}
+      {swapError && <p className="mt-6 text-sm text-rose-500">{swapError}</p>}
 
-      {paymentStarted ? (
-        <p className="mt-16 text-center text-sm font-medium text-neutral-500">
-          Session moved to payment.
-        </p>
+      {isLocked ? (
+        <div className="mt-16 w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+            🔒 Locked — payment collection open
+          </p>
+        </div>
       ) : (
         <div className="mt-16 flex w-full max-w-sm flex-col items-center gap-3">
           <button
@@ -137,6 +198,25 @@ function AdminPage() {
           </button>
           {paymentError && <p className="text-sm text-rose-500">{paymentError}</p>}
         </div>
+      )}
+
+      {swapCandidate && (
+        <SwapToWaitlistPopup
+          playerName={swapCandidate.name}
+          waitlist={waitlist}
+          onClose={() => setSwapCandidate(null)}
+          onSelect={handleSwap}
+        />
+      )}
+
+      {showCapacityPopup && sessionInformation && (
+        <ChangeCapacityPopup
+          currentCapacity={sessionInformation.capacity}
+          playerCount={sessionInformation.player_count}
+          error={capacityError}
+          onClose={() => setShowCapacityPopup(false)}
+          onSubmit={handleChangeCapacity}
+        />
       )}
     </div>
   )
