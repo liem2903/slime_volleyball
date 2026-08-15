@@ -46,6 +46,11 @@ export async function getPricePerPlayer(sessionId: String) {
     return rows[0].price_per_player;
 }
 
+export async function getSessionCapacity(sessionId: String) {
+    let { rows } = await pool.query('SELECT capacity FROM sessions WHERE id = $1', [sessionId]);
+    return rows[0].capacity;
+}
+
 
 export async function addInterestedPlayer(session_id: String, id: String, email: string): Promise<playerReturn> {    
     const hash = crypto.randomUUID();
@@ -122,4 +127,8 @@ export async function getPlayerState(player_id: String) {
 export async function lockSession(id: String) {
     const { rows } = await pool.query('UPDATE sessions SET state = $1 WHERE id = $2 RETURNING player_count, cost_cents', ['locked', id]);
     await pool.query('UPDATE sessions SET price_per_player = $1 WHERE id = $2', [Math.ceil(rows[0].cost_cents / rows[0].player_count), id]);
+}
+
+export async function markPlayerPaid(playerId: String) {
+    await pool.query('UPDATE attendances SET state = $1 WHERE id = $2', ["confirmed", playerId])
 }
