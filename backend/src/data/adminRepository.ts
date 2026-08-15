@@ -139,3 +139,83 @@ export async function confirmPlayerRepository(playerId: string, sessionId: strin
         client.release();
     }
 }
+
+export async function changeCapacityRepository(capacity: number, sessionId: string) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows: session_data } = await client.query('SELECT capacity, player_count, state FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+
+        if (session_data[0].state != "unlocked") throw new BadRequestError("Session state is not unlocked", "WRONG STATE");
+
+        let player_count = session_data[0].player_count;
+
+        if (capacity > player_count) {
+            const room = capacity - player_count;
+
+            const { rows: promoted } = await client.query(
+                `UPDATE attendances SET state = 'interested'
+                 WHERE id IN (
+                    SELECT id FROM attendances WHERE session_id = $1 AND state = 'waitlist' ORDER BY joined_at ASC LIMIT $2
+                 )
+                 RETURNING id`,
+                [sessionId, room]
+            );
+
+            player_count += promoted.length;
+        } else if (capacity < player_count) {
+            const excess = player_count - capacity;
+
+            const { rows: demoted } = await client.query(
+                `UPDATE attendances SET state = 'waitlist'
+                 WHERE id IN (
+                    SELECT id FROM attendances WHERE session_id = $1 AND state = 'interested' ORDER BY joined_at DESC LIMIT $2
+                 )
+                 RETURNING id`,
+                [sessionId, excess]
+            );
+
+            player_count -= demoted.length;
+        }
+
+        await client.query('UPDATE sessions SET capacity = $1, player_count = $2 WHERE id = $3', [capacity, player_count, sessionId]);
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
+    }
+}
+
+export async function unlockSessionRepository(sessionId: string) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows: session_data } = await client.query('SELECT state FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+
+        if (session_data.length === 0) throw new NotFoundError();
+
+        const { rows: confirmedPlayers } = await client.query(`SELECT id FROM attendances WHERE session_id = $1 AND state = $2`, [sessionId, "confirmed"]);
+
+        if (confirmedPlayers.length > 0) throw new BadRequestError("Cannot unlock a session with confirmed payments", "PAYMENT ALREADY CONFIRMED");
+
+        await client.query('UPDATE sessions SET state = $1, price_per_player = NULL WHERE id = $2', ["unlocked", sessionId]);
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
+    }
+}

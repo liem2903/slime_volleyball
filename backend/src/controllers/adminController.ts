@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { lockSessionBusiness, kickPlayerBusiness, swapStatesBusiness, confirmPlayerBusiness } from '../business/adminBusiness';
+import { lockSessionBusiness, kickPlayerBusiness, swapStatesBusiness, confirmPlayerBusiness, unlockSessionBusiness, changeCapacityBusiness } from '../business/adminBusiness';
 
 export async function lockSession(req: Request, res: Response, next: NextFunction) {
     try {
@@ -41,6 +41,29 @@ export async function confirmPlayer(req: Request, res: Response, next: NextFunct
 
         await confirmPlayerBusiness(playerId, sessionId);
 
+        res.status(200).json({success: true});
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function unlockSession(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { sessionId } = req.params;
+
+        await unlockSessionBusiness(sessionId);
+        res.status(200).json({success: true});
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function changeCapacity(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { capacity } = req.body;
+        const { sessionId } = req.params;
+
+        await changeCapacityBusiness(capacity, sessionId);
         res.status(200).json({success: true});
     } catch (err) {
         next(err);

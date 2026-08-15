@@ -3,7 +3,7 @@ import { expect, test, describe, beforeEach, afterEach } from "@jest/globals";
 import { SessionRequest } from "../../utility/types";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer, markPlayerPaid, getSessionCapacity, getPlayersAndWaitlist } from './helpers/session.testHelper'
+import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer, markPlayerPaid, getSessionCapacity, getPlayersAndWaitlist, setSessionState } from './helpers/session.testHelper'
 import e from "express";
 import expectCookies from "supertest/lib/cookies";
 
@@ -504,6 +504,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 25 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(25);
             expect(await getPlayerState(player_1_id)).toBe("interested");
             expect(await getPlayerState(player_2_id)).toBe("interested");
@@ -525,6 +526,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 4 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(4);
             expect(await getPlayerState(waitlist_id)).toBe("interested");
             expect(await getSessionPlayerCount(id)).toBe(4);
@@ -549,6 +551,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 5 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(5);
             expect(await getPlayerState(w1)).toBe("interested");
             expect(await getPlayerState(w2)).toBe("interested");
@@ -574,6 +577,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 10 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(10);
             expect(await getPlayerState(waitlist_id)).toBe("interested");
             expect(await getSessionPlayerCount(id)).toBe(4);
@@ -599,6 +603,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 3 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(3);
             expect(await getPlayerState(p1)).toBe("interested");
             expect(await getPlayerState(p2)).toBe("interested");
@@ -626,6 +631,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 5 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(5);
             expect(await getPlayerState(p1)).toBe("interested");
             expect(await getPlayerState(p2)).toBe("interested");
@@ -641,6 +647,31 @@ describe("Changing session capacity", () => {
         }
     });
 
+    test("Decreasing capacity with headroom (new capacity still above the current interested count) changes nobody", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        const { id: p1 } = await addInterestedPlayer(id, crypto.randomUUID(), "caphr1@gmail.com");
+        const { id: p2 } = await addInterestedPlayer(id, crypto.randomUUID(), "caphr2@gmail.com");
+        const { id: p3 } = await addInterestedPlayer(id, crypto.randomUUID(), "caphr3@gmail.com");
+        // capacity is 20, player_count is 1 (host) + 3 = 4 -> well under both old and new capacity
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
+            expect(await getSessionCapacity(id)).toBe(10);
+            expect(await getPlayerState(p1)).toBe("interested");
+            expect(await getPlayerState(p2)).toBe("interested");
+            expect(await getPlayerState(p3)).toBe("interested");
+            expect(await getSessionPlayerCount(id)).toBe(4);
+        } finally {
+            await deletePlayer(p1, id);
+            await deletePlayer(p2, id);
+            await deletePlayer(p3, id);
+            await deleteSession(id);
+        }
+    });
+
     test("No-op - capacity sent unchanged leaves everything as-is", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court_capacity);
         const { id: player_1_id } = await addInterestedPlayer(id, crypto.randomUUID(), "capnoop@gmail.com");
@@ -649,6 +680,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 3 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(3);
             expect(await getPlayerState(player_1_id)).toBe("interested");
             expect(await getSessionPlayerCount(id)).toBe(2);
@@ -674,6 +706,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 3 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(3);
             expect(await getPlayerState(p1)).toBe("interested");
             expect(await getPlayerState(p2)).toBe("interested");
@@ -700,6 +733,7 @@ describe("Changing session capacity", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 2 });
 
             expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
             expect(await getSessionCapacity(id)).toBe(2);
             expect(await getPlayerState(p1)).toBe("interested");
             expect(await getPlayerState(p2)).toBe("waitlist");
@@ -724,9 +758,37 @@ describe("Changing session capacity", () => {
             expect(res.status).toBe(400);
             expect(res.body.message).toBe("Session state is not unlocked");
             expect(await getSessionCapacity(id)).toBe(3);
-            expect(await getPlayerState(player_1_id)).toBe("payment_pending");
+            expect(await getPlayerState(player_1_id)).toBe("interested");
         } finally {
             await deletePlayer(player_1_id, id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to change capacity when the session is completed", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 25 });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionCapacity(id)).toBe(20);
+        } finally {
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to change capacity when the session is cancelled", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "cancelled");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/changeCapacity`).send({ capacity: 25 });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionCapacity(id)).toBe(20);
+        } finally {
             await deleteSession(id);
         }
     });

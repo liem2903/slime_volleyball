@@ -41,6 +41,10 @@ export async function getSessionState(sessionId: String): Promise<String> {
     return rows[0].state;
 }
 
+export async function setSessionState(sessionId: String, state: string) {
+    await pool.query('UPDATE sessions SET state = $1 WHERE id = $2', [state, sessionId]);
+}
+
 export async function getPricePerPlayer(sessionId: String) {
     let { rows } = await pool.query('SELECT price_per_player FROM sessions WHERE id = $1', [sessionId]);
     return rows[0].price_per_player;
