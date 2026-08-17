@@ -136,3 +136,8 @@ export async function lockSession(id: String) {
 export async function markPlayerPaid(playerId: String) {
     await pool.query('UPDATE attendances SET state = $1 WHERE id = $2', ["confirmed", playerId])
 }
+
+export async function getPlayerPositions(playerId: String) {
+    const { rows } = await pool.query('SELECT primary_position, secondary_position FROM attendances WHERE id = $1', [playerId]);
+    return rows[0];
+}

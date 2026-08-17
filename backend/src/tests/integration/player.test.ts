@@ -1,7 +1,7 @@
 import { expect, test, describe, beforeAll } from "@jest/globals";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { deleteSession, addSession, addInterestedPlayer, deletePlayer, getPlayerCount, getPlayersAndWaitlist, getPlayerId, doesPlayerExist, addWaitlistedPlayer, lockSession, getPlayerState, getPricePerPlayer} from './helpers/session.testHelper'
+import { deleteSession, addSession, addInterestedPlayer, deletePlayer, getPlayerCount, getPlayersAndWaitlist, getPlayerId, doesPlayerExist, addWaitlistedPlayer, lockSession, getPlayerState, getPricePerPlayer, addPaymentPendingPlayer, setSessionState, getPlayerPositions} from './helpers/session.testHelper'
 import { PlayerRequest, SessionRequest } from "../../utility/types";
 
 const mock_session_with_court: SessionRequest = {
@@ -99,6 +99,22 @@ describe("Getting a player", () => {
 
             expect(res.status).toBe(200);
             expect(res.body.data[0].name).toBe("FILLER MAN");
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Locked session - payment pending players are still returned with their state", async () => {
+        let session_id = await addSession(mock_session_with_court);
+        let player = await addPaymentPendingPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+        await lockSession(session_id);
+        try {
+            let res = await request(app).get(`/api/players/${session_id}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0].name).toBe("FILLER MAN");
+            expect(res.body.data[0].state).toBe("payment_pending");
         } finally {
             await deletePlayer(player.id, session_id);
             await deleteSession(session_id);
@@ -324,4 +340,386 @@ describe("DELETE: Player Drops Out", () => {
         }
     })
 });
- 
+
+// Player Sets Position Preference.
+describe("PATCH: Setting position preferences", () => {
+    test("Happy Path: First time setting position preference", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: "middle",
+                secondary_position: "oppo"
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Happy Path: Changing an already-set position preference overwrites it", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "lib", secondary_position: "outside" });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: "lib",
+                secondary_position: "outside"
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Happy Path: Preference can be changed repeatedly, last write wins", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        const sequence = [
+            { primary_position: "middle", secondary_position: "oppo" },
+            { primary_position: "outside", secondary_position: "lib" },
+            { primary_position: "lib", secondary_position: "middle" },
+        ];
+
+        try {
+            for (const body of sequence) {
+                const res = await request(app)
+                    .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                    .send(body);
+                expect(res.status).toBe(200);
+            }
+
+            expect(await getPlayerPositions(player.id)).toEqual(sequence[sequence.length - 1]);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test.each([
+        ["middle", "oppo"],
+        ["oppo", "outside"],
+        ["outside", "lib"],
+        ["lib", "middle"],
+    ])("Happy Path: '%s' is accepted as primary_position", async (primary_position, secondary_position) => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position, secondary_position });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerPositions(player.id)).toEqual({ primary_position, secondary_position });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Happy Path: Allowed while session is locked", async () => {
+        const session_id = await addSession(mock_session_with_two_capacity);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+        const other_player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan803@gmail.com");
+
+        try {
+            await lockSession(session_id);
+
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: "middle",
+                secondary_position: "oppo"
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deletePlayer(other_player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Happy Path: Allowed while session is completed", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            await setSessionState(session_id, "completed");
+
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: "middle",
+                secondary_position: "oppo"
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Happy Path: A waitlisted player can set their position preference", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addWaitlistedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: "middle",
+                secondary_position: "oppo"
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Response body contains no data field on success", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.body).toEqual({ success: true });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+});
+
+describe("PATCH: Setting position preferences - validation errors", () => {
+    test("Rejects when primary_position equals secondary_position", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "middle" });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: null,
+                secondary_position: null
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects an invalid primary_position value", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "setter", secondary_position: "oppo" });
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects an invalid secondary_position value", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "setter" });
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects when primary_position is missing", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ secondary_position: "oppo" });
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects when secondary_position is missing", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle" });
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects an empty body", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({});
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects incorrectly-cased position values", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "Middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+});
+
+describe("PATCH: Setting position preferences - identity errors", () => {
+    test("Rejects an unknown userToken", async () => {
+        const session_id = await addSession(mock_session_with_court);
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${crypto.randomUUID()}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(404);
+        } finally {
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects a userToken that belongs to a different session", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const other_session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(other_session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(404);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: null,
+                secondary_position: null
+            });
+        } finally {
+            await deletePlayer(player.id, other_session_id);
+            await deleteSession(session_id);
+            await deleteSession(other_session_id);
+        }
+    });
+});
+
+describe("PATCH: Setting position preferences - frozen once session reaches 'teams' state", () => {
+    test("Rejects changing an already-set preference once session is in 'teams' state", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            await setSessionState(session_id, "teams");
+
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "lib", secondary_position: "outside" });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: "middle",
+                secondary_position: "oppo"
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+
+    test("Rejects a first-time preference set once session is in 'teams' state", async () => {
+        const session_id = await addSession(mock_session_with_court);
+        const player = await addInterestedPlayer(session_id, crypto.randomUUID(), "liemphan802@gmail.com");
+
+        try {
+            await setSessionState(session_id, "teams");
+
+            const res = await request(app)
+                .patch(`/api/players/positions/${session_id}/${player.hash}`)
+                .send({ primary_position: "middle", secondary_position: "oppo" });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerPositions(player.id)).toEqual({
+                primary_position: null,
+                secondary_position: null
+            });
+        } finally {
+            await deletePlayer(player.id, session_id);
+            await deleteSession(session_id);
+        }
+    });
+});
