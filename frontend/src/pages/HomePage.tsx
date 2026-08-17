@@ -11,8 +11,8 @@ function HomePage() {
   const [isPopupOpen, setIsPopupOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-white to-white px-6 py-20">
-      <h1 className="text-5xl font-extrabold tracking-tight text-emerald-400">
+    <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-neutral-50 to-neutral-50 px-6 py-20">
+      <h1 className="text-3xl font-semibold tracking-tight text-emerald-600">
         Slime Volleyball
       </h1>
       <p className="mt-3 text-neutral-500">Host a match, share a link, start playing.</p>
@@ -24,7 +24,7 @@ function HomePage() {
               playClickSound()
               setIsPopupOpen(true)
             }}
-            className="w-full cursor-pointer rounded-full bg-amber-200 px-8 py-4 font-semibold text-neutral-800 shadow-sm transition-all duration-150 hover:scale-105 hover:bg-amber-300 hover:shadow-md active:scale-95 active:bg-amber-400 active:shadow-sm"
+            className="w-full cursor-pointer rounded-xl bg-amber-500 px-8 py-3 font-semibold text-white shadow-md shadow-amber-500/25 transition-all duration-150 hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/30 active:translate-y-0 active:bg-amber-700"
           >
             Create Session
           </button>

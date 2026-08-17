@@ -1,8 +1,8 @@
-import { Player, WaitList } from "../utility/types";
+import { Player, PlayerPosition, WaitList } from "../utility/types";
 import  { pool } from "../setup/data";
 import { DatabaseError } from "pg";
 import ErrorParse from '../errorHandling/DataBaseErrorParser';
-import { BadRequestError, ConflictError } from "../errorHandling/error";
+import { BadRequestError, ConflictError, NotFoundError } from "../errorHandling/error";
 
 export async function getPlayerRepository(session_id: string) {
     try {
@@ -116,5 +116,49 @@ export async function getIdFromTokenRepository(encryptedToken: String) {
     } catch (err) {
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err
+    }
+}
+
+export async function setPositionsRepository(
+    encryptedToken: string,
+    sessionId: string,
+    primaryPosition: PlayerPosition,
+    secondaryPosition: PlayerPosition
+) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows } = await client.query(
+            `SELECT a.id, s.state AS session_state
+             FROM attendances a
+             JOIN sessions s ON s.id = a.session_id
+             WHERE s.id = $1 AND a.user_token_hash = $2
+             FOR UPDATE OF a, s`,
+            [sessionId, encryptedToken]
+        );
+
+        if (rows.length === 0) throw new NotFoundError();
+
+        if (rows[0].session_state === 'teams') {
+            throw new BadRequestError(
+                'Position preferences are frozen once the session has moved to teams',
+                'SESSION_IN_TEAMS_STATE'
+            );
+        }
+
+        await client.query(
+            `UPDATE attendances SET primary_position = $1, secondary_position = $2 WHERE id = $3`,
+            [primaryPosition, secondaryPosition, rows[0].id]
+        );
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
     }
 }

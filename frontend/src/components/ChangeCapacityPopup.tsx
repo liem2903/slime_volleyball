@@ -22,7 +22,7 @@ function ChangeCapacityPopup({
 
   const handleSubmit = () => {
     if (!isValid) {
-      setValidationError("That doesn't look like a valid capacity! \u{1F97A}")
+      setValidationError('Enter a valid capacity.')
       return
     }
     setValidationError('')
@@ -36,7 +36,7 @@ function ChangeCapacityPopup({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-lg"
+        className="relative w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -47,7 +47,7 @@ function ChangeCapacityPopup({
           &times;
         </button>
 
-        <h2 className="text-2xl font-bold text-emerald-400">Change capacity</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Change capacity</h2>
         <p className="mt-1 text-sm text-neutral-500">
           Currently {playerCount}/{currentCapacity} players.
         </p>
@@ -83,7 +83,7 @@ function ChangeCapacityPopup({
 
         <button
           onClick={handleSubmit}
-          className="mt-6 w-full cursor-pointer rounded-full bg-amber-200 px-8 py-3 font-semibold text-neutral-800 shadow-sm transition-all duration-150 hover:scale-105 hover:bg-amber-300 hover:shadow-md active:scale-95 active:bg-amber-400 active:shadow-sm"
+          className="mt-6 w-full cursor-pointer rounded-xl bg-amber-600 px-8 py-3 font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-amber-700 active:bg-amber-800"
         >
           Save capacity
         </button>

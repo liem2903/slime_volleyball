@@ -11,11 +11,15 @@ export function convertDateToAbbreviation(date: string): string {
 export function convertTimeToMeredian(time: string): string {
   let temp_date = new Date(time);
 
-  return temp_date.toLocaleTimeString("en-UK", 
+  return temp_date.toLocaleTimeString("en-UK",
     {
       hour: "numeric",
       minute: "numeric",
       hour12: true
     }
   )
+}
+
+export function formatCentsToDollars(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
 }

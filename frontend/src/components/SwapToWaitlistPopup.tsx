@@ -14,11 +14,11 @@ function SwapToWaitlistPopup({
 }) {
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-neutral-900/30 px-4"
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-neutral-900/30 px-4 py-8"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-lg"
+        className="relative w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -29,7 +29,7 @@ function SwapToWaitlistPopup({
           &times;
         </button>
 
-        <h2 className="text-2xl font-bold text-emerald-400">Swap out {playerName}?</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Swap out {playerName}?</h2>
         <p className="mt-1 text-sm text-neutral-500">Pick who from the waitlist takes their spot.</p>
 
         <div className="mt-6 space-y-2">

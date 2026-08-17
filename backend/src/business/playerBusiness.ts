@@ -1,6 +1,6 @@
-import { createPlayerRepository, getPlayerRepository, getWaitlistRepository, deletePlayerRepository, getIdFromTokenRepository } from '../data/playerRepository';
+import { createPlayerRepository, getPlayerRepository, getWaitlistRepository, deletePlayerRepository, getIdFromTokenRepository, setPositionsRepository } from '../data/playerRepository';
 import { generateSHA256 } from '../utility/helper';
-import { Player, PlayerResponse, WaitList } from '../utility/types';
+import { Player, PlayerPosition, PlayerResponse, WaitList } from '../utility/types';
 import crypto from 'crypto';
 
 export async function getPlayersBusiness(sessionId: string): Promise<Player[]> {
@@ -38,4 +38,8 @@ export async function deletePlayerBusiness(encryptedToken: string, sessionId: st
 
 export async function getIdFromTokenBusiness(encryptedToken: string) {
     return await getIdFromTokenRepository(encryptedToken);
+}
+
+export async function setPositionsBusiness(encryptedToken: string, sessionId: string, primaryPosition: PlayerPosition, secondaryPosition: PlayerPosition) {
+    await setPositionsRepository(encryptedToken, sessionId, primaryPosition, secondaryPosition);
 }

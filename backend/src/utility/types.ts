@@ -71,3 +71,5 @@ export type Player = {
 }
 
 export type WaitList = Player;
+
+export type PlayerPosition = 'middle' | 'oppo' | 'outside' | 'lib';

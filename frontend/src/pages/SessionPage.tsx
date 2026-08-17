@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom';
 import { playClickSound } from '../lib/sound'
 import PersonRow from '../components/PersonRow'
+import StatusBadge from '../components/StatusBadge'
 import JoinSessionPopup from '../components/JoinSessionPopup'
-import SwapToWaitlistPopup from '../components/SwapToWaitlistPopup'
 import LinkRow from '../components/LinkRow'
 import { convertDateToAbbreviation, convertTimeToMeredian } from '../helpers/sessionHelpers';
 import type { WaitList, Player, SessionResult, PlayerResponse } from '../types'
@@ -16,7 +16,6 @@ function SessionPage() {
   const [ sessionInformation, setSessionInformation ] = useState<SessionResult>();
   const [ players, setPlayers ] = useState<Player[]>([]);
   const [ waitlist, setWaitlist ] = useState<WaitList[]>([]);
-  const [ swapCandidate, setSwapCandidate ] = useState<Player | null>(null);
   const { sessionId } = useParams<string>();
 
   useEffect(() => {
@@ -42,12 +41,22 @@ function SessionPage() {
     fetchWaitlist(sessionId);
   }, [])
 
+  const isLocked = sessionInformation?.state === 'locked'
+  const isCompleted = sessionInformation?.state === 'completed'
+  const isCancelled = sessionInformation?.state === 'cancelled'
+  const isTeams = sessionInformation?.state === 'teams'
+  const isOver = isCompleted || isCancelled
+
   return (
-    <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-white to-white px-6 py-20">
-      <p className="text-sm font-medium uppercase tracking-wide text-neutral-400">
+    <div className="flex min-h-screen flex-col items-center bg-gradient-to-b from-emerald-50 via-neutral-50 to-neutral-50 px-6 py-20">
+      <p className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-neutral-400">
         {sessionInformation?.player_count}/{sessionInformation?.capacity} players
+        {isLocked && <StatusBadge tone="amber" label="Locked" />}
+        {isCompleted && <StatusBadge tone="slate" label="Completed" />}
+        {isTeams && <StatusBadge tone="emerald" label="Teams" />}
+        {isCancelled && <StatusBadge tone="rose" label="Cancelled" />}
       </p>
-      <h1 className="mt-2 text-center text-5xl font-extrabold tracking-tight text-emerald-400">
+      <h1 className="mt-2 text-center text-3xl font-semibold tracking-tight text-emerald-600">
         {sessionInformation?.court_name ?? `${sessionInformation?.host_name} session`}
       </h1>
       <p className="mt-3 text-neutral-500">
@@ -64,7 +73,9 @@ function SessionPage() {
               <PersonRow
                 key={player.id}
                 name={player.name}
-                onPromote={() => setSwapCandidate(player)}
+                state={player.state}
+                primaryPosition={player.primary_position}
+                secondaryPosition={player.secondary_position}
               />
             ))}
           </div>
@@ -76,7 +87,14 @@ function SessionPage() {
           </h2>
           <div className="space-y-3">
             {waitlist.length > 0 ? (
-              waitlist.map((person) => <PersonRow key={person.id} name={person.name} />)
+              waitlist.map((person) => (
+                <PersonRow
+                  key={person.id}
+                  name={person.name}
+                  primaryPosition={person.primary_position}
+                  secondaryPosition={person.secondary_position}
+                />
+              ))
             ) : (
               <p className="text-sm text-neutral-400">No one's waiting right now.</p>
             )}
@@ -88,16 +106,41 @@ function SessionPage() {
         <div className="mt-16 w-full max-w-sm">
           <LinkRow label="Your link" value={playerLink} />
         </div>
-      ) : (
-        <button
-          onClick={() => {
-            playClickSound()
-            setIsPopupOpen(true)
-          }}
-          className="mt-16 w-full max-w-sm cursor-pointer rounded-full bg-amber-200 px-8 py-4 font-semibold text-neutral-800 shadow-sm transition-all duration-150 hover:scale-105 hover:bg-amber-300 hover:shadow-md active:scale-95 active:bg-amber-400 active:shadow-sm"
+      ) : isOver ? (
+        <div
+          className={`mt-16 w-full max-w-md rounded-xl px-5 py-3 text-center ${
+            isCompleted ? 'bg-slate-100' : 'bg-rose-50'
+          }`}
         >
-          Join Session
-        </button>
+          <p
+            className={`text-xs font-semibold uppercase tracking-wide ${
+              isCompleted ? 'text-slate-600' : 'text-rose-600'
+            }`}
+          >
+            {isCompleted ? 'This session has ended.' : 'This session has been cancelled.'}
+          </p>
+        </div>
+      ) : isTeams ? (
+        <div className="mt-16 w-full max-w-md rounded-xl bg-emerald-50 px-5 py-3 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Teams assigned</p>
+        </div>
+      ) : (
+        <div className="mt-16 flex w-full max-w-sm flex-col items-center gap-3">
+          <button
+            onClick={() => {
+              playClickSound()
+              setIsPopupOpen(true)
+            }}
+            className="w-full cursor-pointer rounded-xl bg-amber-500 px-8 py-3 font-semibold text-white shadow-md shadow-amber-500/25 transition-all duration-150 hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/30 active:translate-y-0 active:bg-amber-700"
+          >
+            Join Session
+          </button>
+          {isLocked && (
+            <p className="text-center text-xs font-medium text-amber-600">
+              Payment collection is underway — new joins go to the waitlist.
+            </p>
+          )}
+        </div>
       )}
 
       {isPopupOpen && (
@@ -106,31 +149,12 @@ function SessionPage() {
           onSubmit={async (email, name) => {
             const player: PlayerResponse = (await axios.post('/api/players/create', {email, name, session_id: sessionId})).data.data;
             if (player.user_state === 'waitlist') {
-              setWaitlist((prev) => [...prev, { id: player.id, name: player.name }]);
+              setWaitlist((prev) => [...prev, { id: player.id, name: player.name, state: player.user_state }]);
             } else {
-              setPlayers((prev) => [...prev, { id: player.id, name: player.name }]);
+              setPlayers((prev) => [...prev, { id: player.id, name: player.name, state: player.user_state }]);
             }
             setPlayerLink(player.user_link);
             setIsPopupOpen(false);
-          }}
-        />
-      )}
-
-      {swapCandidate && (
-        <SwapToWaitlistPopup
-          playerName={swapCandidate.name}
-          waitlist={waitlist}
-          onClose={() => setSwapCandidate(null)}
-          onSelect={(waitlistPlayer) => {
-            setPlayers((prev) => [
-              ...prev.filter((p) => p.id !== swapCandidate.id),
-              { id: waitlistPlayer.id, name: waitlistPlayer.name },
-            ]);
-            setWaitlist((prev) => [
-              ...prev.filter((p) => p.id !== waitlistPlayer.id),
-              { id: swapCandidate.id, name: swapCandidate.name },
-            ]);
-            setSwapCandidate(null);
           }}
         />
       )}
