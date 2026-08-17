@@ -52,7 +52,9 @@ export async function getSessionData(session_id: string): Promise<SessionResult>
             court_name: session_data.court_name,
             date: session_data.date,
             player_count: session_data.player_count,
-        }   
+            state: session_data.state,
+            price_per_player: session_data.price_per_player,
+        }
     } catch (err) {
         if (err instanceof DatabaseError) ErrorParse(err)
         else throw err;

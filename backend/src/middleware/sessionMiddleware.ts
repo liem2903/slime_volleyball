@@ -28,7 +28,7 @@ export function error_handler(err: Error,  req: Request, res: Response, next: Ne
         return res.status(400).json({message: `Zod error ${err.message}`});
     }
 
-    return err;
+    return res.status(500).json({message: 'Internal server error'});
 }
 
 export async function check_is_admin(req: Request, res: Response, next: NextFunction) {
@@ -36,7 +36,7 @@ export async function check_is_admin(req: Request, res: Response, next: NextFunc
     const decodedAdminId = generateSHA256(adminId);
 
     if (!(await checkIsAdmin(sessionId, decodedAdminId))) {
-        next(new UnauthorisedRequest());
+        return next(new UnauthorisedRequest());
     }
 
     req.params = {sessionId};

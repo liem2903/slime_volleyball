@@ -10,8 +10,8 @@ router.get('/health', (_req: Request, res: Response) => {
 });
 
 router.get('/waitlist/:sessionId', getWaitlist);
+router.get('/token/:userToken', getIdFromToken);
 router.get('/:sessionId', getPlayers);
-router.get('/:userToken', getIdFromToken);
 router.post('/create', validate(PlayerSchema), createPlayer);
 router.delete('/delete/:sessionId/:userToken', deletePlayer);
 

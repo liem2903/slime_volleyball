@@ -37,5 +37,5 @@ export async function deletePlayerBusiness(encryptedToken: string, sessionId: st
 }
 
 export async function getIdFromTokenBusiness(encryptedToken: string) {
-    await getIdFromTokenRepository(encryptedToken);
+    return await getIdFromTokenRepository(encryptedToken);
 }

@@ -6,12 +6,13 @@ import { BadRequestError, ConflictError } from "../errorHandling/error";
 
 export async function getPlayerRepository(session_id: string) {
     try {
-        const data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND (state = $2 OR state = $3)`, [session_id, "interested", "confirmed"]);
+        const data = await pool.query(`SELECT id, name, state FROM attendances where session_id = $1 AND (state = $2 OR state = $3 OR state = $4)`, [session_id, "interested", "confirmed", "payment_pending"]);
 
         let players: Player[] = data.rows.map((player) => {
             return {
                 id: player.id,
-                name: player.name
+                name: player.name,
+                state: player.state
             }
         });
 
@@ -25,12 +26,13 @@ export async function getPlayerRepository(session_id: string) {
 
 export async function getWaitlistRepository(session_id: string) {
     try {
-        const data = await pool.query(`SELECT id, name FROM attendances where session_id = $1 AND state = $2`, [session_id, "waitlist"]);
+        const data = await pool.query(`SELECT id, name, state FROM attendances where session_id = $1 AND state = $2`, [session_id, "waitlist"]);
 
         let waitlist: WaitList[] = data.rows.map((player) => {
             return {
                 id: player.id,
-                name: player.name
+                name: player.name,
+                state: player.state
             }
         });
 
@@ -109,8 +111,8 @@ export async function deletePlayerRepository(encryptedToken: string, sessionId: 
 export async function getIdFromTokenRepository(encryptedToken: String) {
     try {
         const { rows } = await pool.query(`SELECT id FROM attendances WHERE user_token_hash = $1`, [encryptedToken]);
-        
-        return rows[0];
+
+        return rows[0]?.id;
     } catch (err) {
         if (err instanceof DatabaseError) ErrorParse(err);
         else throw err

@@ -80,7 +80,7 @@ describe("Getting a session", () => {
                 admin_token_hash: "hello",
                 time_start: "2026-07-10T01:36:00.000Z",
                 time_end: "2026-07-10T01:36:00.000Z",
-                cost_cents: 100,
+                cost_cents: 200,
                 capacity: 20,
                 court_name: "Olympic Park",
                 date: "2026-07-09T14:00:00.000Z"

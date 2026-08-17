@@ -141,3 +141,8 @@ export async function getPlayerPositions(playerId: String) {
     const { rows } = await pool.query('SELECT primary_position, secondary_position FROM attendances WHERE id = $1', [playerId]);
     return rows[0];
 }
+
+export async function getPlayerAssignedPosition(playerId: String) {
+    const { rows } = await pool.query('SELECT assigned_position FROM attendances WHERE id = $1', [playerId]);
+    return rows[0].assigned_position;
+}
