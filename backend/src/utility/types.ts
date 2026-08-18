@@ -59,6 +59,19 @@ export type Team = {
     color: string | null;
 }
 
+export type TeamPlayer = {
+    id: string;
+    name: string;
+    assigned_position: PlayerPosition | null;
+}
+
+export type TeamWithPlayers = {
+    id: string;
+    name: string;
+    color: string | null;
+    players: TeamPlayer[];
+}
+
 export type PlayerRequest = {
     name: string,
     email: string,

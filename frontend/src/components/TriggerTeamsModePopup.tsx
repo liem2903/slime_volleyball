@@ -35,8 +35,8 @@ function TriggerTeamsModePopup({
       .map((row) => ({ name: row.name.trim(), color: row.color.trim() }))
       .filter((row) => row.name !== '')
 
-    if (teams.length === 0) {
-      setValidationError('Add at least one team.')
+    if (teams.length < 2) {
+      setValidationError('Add at least two teams.')
       return
     }
 
