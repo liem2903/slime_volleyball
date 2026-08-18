@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
-import { lockSessionBusiness, kickPlayerBusiness, swapStatesBusiness, confirmPlayerBusiness, unlockSessionBusiness, changeCapacityBusiness } from '../business/adminBusiness';
+import { lockSessionBusiness, kickPlayerBusiness, swapStatesBusiness, confirmPlayerBusiness, unlockSessionBusiness, changeCapacityBusiness, moveToTeamsBusiness } from '../business/adminBusiness';
+import { TeamInput } from '../utility/types';
 
 export async function lockSession(req: Request, res: Response, next: NextFunction) {
     try {
@@ -64,6 +65,18 @@ export async function changeCapacity(req: Request, res: Response, next: NextFunc
         const { sessionId } = req.params;
 
         await changeCapacityBusiness(capacity, sessionId);
+        res.status(200).json({success: true});
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function moveToTeams(req: Request, res: Response, next: NextFunction) {
+    try {
+        const teams: TeamInput[] = req.body.teams;
+        const { sessionId } = req.params;
+
+        await moveToTeamsBusiness(teams, sessionId);
         res.status(200).json({success: true});
     } catch (err) {
         next(err);

@@ -193,6 +193,36 @@ export async function changeCapacityRepository(capacity: number, sessionId: stri
     }
 }
 
+export async function moveToTeamsRepository(teams: {id: string, name: string, color: string | null}[], sessionId: string) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows: session_data } = await client.query('SELECT state FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+
+        if (session_data.length === 0) throw new NotFoundError();
+        if (session_data[0].state != "completed") throw new BadRequestError("Session state is not completed", "WRONG STATE");
+
+        await client.query('UPDATE sessions SET state = $1 WHERE id = $2', ["teams", sessionId]);
+
+        for (const team of teams) {
+            await client.query(
+                'INSERT INTO teams (id, session_id, name, color) VALUES ($1, $2, $3, $4)',
+                [team.id, sessionId, team.name, team.color]
+            );
+        }
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
+    }
+}
+
 export async function unlockSessionRepository(sessionId: string) {
     const client = await pool.connect();
 

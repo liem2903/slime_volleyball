@@ -1,4 +1,6 @@
-import { lockSessionRepository, kickPlayerRepository, swapStatesRepository, confirmPlayerRepository, unlockSessionRepository, changeCapacityRepository } from '../data/adminRepository';
+import { lockSessionRepository, kickPlayerRepository, swapStatesRepository, confirmPlayerRepository, unlockSessionRepository, changeCapacityRepository, moveToTeamsRepository } from '../data/adminRepository';
+import { TeamInput } from '../utility/types';
+import crypto from 'crypto';
 
 export async function lockSessionBusiness(state: string, sessionId: string) {
     await lockSessionRepository(state, sessionId);
@@ -22,4 +24,14 @@ export async function unlockSessionBusiness(sessionId: string) {
 
 export async function changeCapacityBusiness(capacity: number, sessionId: string) {
     await changeCapacityRepository(capacity, sessionId);
+}
+
+export async function moveToTeamsBusiness(teams: TeamInput[], sessionId: string) {
+    const teamsWithIds = teams.map(team => ({
+        id: crypto.randomUUID(),
+        name: team.name,
+        color: team.color ?? null,
+    }));
+
+    await moveToTeamsRepository(teamsWithIds, sessionId);
 }

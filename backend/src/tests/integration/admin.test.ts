@@ -1029,7 +1029,8 @@ describe("Moving a completed session to teams", () => {
 
     test("Happy Path - moving to teams does not touch existing attendances' team_id or assigned_position", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
-        const { id: playerId } = await addInterestedPlayer(id, crypto.randomUUID(), "movteam1@gmail.com");
+        const { id: playerId } = await addPaymentPendingPlayer(id, crypto.randomUUID(), "movteam1@gmail.com");
+        await markPlayerPaid(playerId);
         await setSessionState(id, "completed");
 
         try {
@@ -1040,7 +1041,7 @@ describe("Moving a completed session to teams", () => {
             expect(res.status).toBe(200);
             expect(await getPlayerTeamId(playerId)).toBeNull();
             expect(await getPlayerAssignedPosition(playerId)).toBeNull();
-            expect(await getPlayerState(playerId)).toBe("interested");
+            expect(await getPlayerState(playerId)).toBe("confirmed");
         } finally {
             await deletePlayer(playerId, id);
             await deleteTeams(id);
@@ -1048,7 +1049,7 @@ describe("Moving a completed session to teams", () => {
         }
     });
 
-    test("Happy Path - extra/unknown fields on a team object are ignored", async () => {
+    test("Happy Path - client-supplied id and unknown fields on a team object are ignored, not persisted", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
 
@@ -1060,7 +1061,10 @@ describe("Moving a completed session to teams", () => {
             expect(res.status).toBe(200);
             const teams = await getTeams(id);
             expect(teams).toHaveLength(2);
-            expect(teams.every(t => !("extra" in t))).toBe(true);
+
+            const teamA = teams.find(t => t.name === "Team A");
+            expect(teamA?.id).toBeDefined();
+            expect(teamA?.id).not.toBe("should-be-ignored");
         } finally {
             await deleteTeams(id);
             await deleteSession(id);
@@ -1075,6 +1079,7 @@ describe("Moving a completed session to teams", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({});
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1091,6 +1096,7 @@ describe("Moving a completed session to teams", () => {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [] });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1109,6 +1115,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1127,6 +1134,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
         } finally {
             await deleteTeams(id);
@@ -1144,6 +1152,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1162,6 +1171,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
             await deleteTeams(id);
@@ -1179,6 +1189,26 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("name is whitespace-only is rejected", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "   " }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+            expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
             await deleteTeams(id);
@@ -1196,6 +1226,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1214,6 +1245,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
             await deleteTeams(id);
@@ -1231,6 +1263,85 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("teams array contains non-object elements", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: ["Team A", "Team B"]
+            });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("teams array contains a null element", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, null]
+            });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("name exceeding the database's 255 character limit is rejected with a controlled error", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+        const tooLongName = "A".repeat(256);
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: tooLongName }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("color exceeding the database's 255 character limit is rejected with a controlled error", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+        const tooLongColor = "#".repeat(256);
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A", color: tooLongColor }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
             expect(await getSessionState(id)).toBe("completed");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1248,6 +1359,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body.message).toBe("Session state is not completed");
             expect(await getSessionState(id)).toBe("unlocked");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1266,6 +1378,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body.message).toBe("Session state is not completed");
             expect(await getSessionState(id)).toBe("locked");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1284,6 +1397,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(res.status).toBe(400);
+            expect(res.body.message).toBe("Session state is not completed");
             expect(await getSessionState(id)).toBe("cancelled");
             expect(await getTeams(id)).toHaveLength(0);
         } finally {
@@ -1307,6 +1421,7 @@ describe("Moving a completed session to teams", () => {
             });
 
             expect(secondRes.status).toBe(400);
+            expect(secondRes.body.message).toBe("Session state is not completed");
             expect(await getSessionState(id)).toBe("teams");
             const teams = await getTeams(id);
             expect(teams).toHaveLength(2);
@@ -1364,8 +1479,12 @@ describe("Race Condition for Moving to Teams", () => {
                 const statuses = responses.map(r => r.status).sort();
                 expect(statuses).toEqual([200, 400]);
                 expect(await getSessionState(id)).toBe("teams");
-                // Exactly one payload's teams got persisted, never both, never zero.
-                expect(await getTeams(id)).toHaveLength(2);
+
+                // Exactly one payload's teams got persisted, as a consistent set - never both,
+                // never zero, and never an interleaved mix of names from both payloads (which
+                // would indicate a non-atomic insert racing the state check).
+                const persistedNames = (await getTeams(id)).map(t => t.name).sort();
+                expect([["Team A", "Team B"], ["Team C", "Team D"]]).toContainEqual(persistedNames);
             } finally {
                 await deleteTeams(id);
                 await deleteSession(id);

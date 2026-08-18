@@ -158,6 +158,7 @@ function PlayerPage() {
                 highlighted={player.id === myPlayerId}
                 primaryPosition={player.primary_position}
                 secondaryPosition={player.secondary_position}
+                assignedPosition={player.assigned_position}
               />
             ))}
           </div>
@@ -176,6 +177,7 @@ function PlayerPage() {
                   highlighted={person.id === myPlayerId}
                   primaryPosition={person.primary_position}
                   secondaryPosition={person.secondary_position}
+                  assignedPosition={person.assigned_position}
                 />
               ))
             ) : (

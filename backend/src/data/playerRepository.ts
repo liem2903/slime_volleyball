@@ -6,13 +6,16 @@ import { BadRequestError, ConflictError, NotFoundError } from "../errorHandling/
 
 export async function getPlayerRepository(session_id: string) {
     try {
-        const data = await pool.query(`SELECT id, name, state FROM attendances where session_id = $1 AND (state = $2 OR state = $3 OR state = $4)`, [session_id, "interested", "confirmed", "payment_pending"]);
+        const data = await pool.query(`SELECT id, name, state, primary_position, secondary_position, assigned_position FROM attendances where session_id = $1 AND (state = $2 OR state = $3 OR state = $4)`, [session_id, "interested", "confirmed", "payment_pending"]);
 
         let players: Player[] = data.rows.map((player) => {
             return {
                 id: player.id,
                 name: player.name,
-                state: player.state
+                state: player.state,
+                primary_position: player.primary_position,
+                secondary_position: player.secondary_position,
+                assigned_position: player.assigned_position
             }
         });
 
@@ -26,13 +29,16 @@ export async function getPlayerRepository(session_id: string) {
 
 export async function getWaitlistRepository(session_id: string) {
     try {
-        const data = await pool.query(`SELECT id, name, state FROM attendances where session_id = $1 AND state = $2`, [session_id, "waitlist"]);
+        const data = await pool.query(`SELECT id, name, state, primary_position, secondary_position, assigned_position FROM attendances where session_id = $1 AND state = $2`, [session_id, "waitlist"]);
 
         let waitlist: WaitList[] = data.rows.map((player) => {
             return {
                 id: player.id,
                 name: player.name,
-                state: player.state
+                state: player.state,
+                primary_position: player.primary_position,
+                secondary_position: player.secondary_position,
+                assigned_position: player.assigned_position
             }
         });
 

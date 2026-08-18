@@ -68,6 +68,7 @@ export type Player = {
     state: 'interested' | 'waitlist' | 'payment_pending' | 'confirmed'
     primary_position?: PlayerPosition | null
     secondary_position?: PlayerPosition | null
+    assigned_position?: PlayerPosition | null
 }
 
 export type WaitList = Player;

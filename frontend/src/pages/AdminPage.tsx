@@ -210,6 +210,7 @@ function AdminPage() {
                 state={player.state}
                 primaryPosition={player.primary_position}
                 secondaryPosition={player.secondary_position}
+                assignedPosition={player.assigned_position}
                 onRemove={!isOver ? () => handleKick(player.id) : undefined}
                 onPromote={sessionInformation?.state === 'unlocked' ? () => setSwapCandidate(player) : undefined}
                 onConfirmPayment={
@@ -232,6 +233,7 @@ function AdminPage() {
                   name={person.name}
                   primaryPosition={person.primary_position}
                   secondaryPosition={person.secondary_position}
+                  assignedPosition={person.assigned_position}
                   onRemove={!isOver ? () => handleKick(person.id) : undefined}
                 />
               ))

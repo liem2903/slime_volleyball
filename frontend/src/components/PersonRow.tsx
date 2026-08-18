@@ -8,6 +8,7 @@ function PersonRow({
   state,
   primaryPosition,
   secondaryPosition,
+  assignedPosition,
   onRemove,
   onPromote,
   onConfirmPayment,
@@ -17,6 +18,7 @@ function PersonRow({
   state?: 'interested' | 'waitlist' | 'payment_pending' | 'confirmed'
   primaryPosition?: PlayerPosition | null
   secondaryPosition?: PlayerPosition | null
+  assignedPosition?: PlayerPosition | null
   onRemove?: () => void
   onPromote?: () => void
   onConfirmPayment?: () => void
@@ -36,6 +38,7 @@ function PersonRow({
         {state === 'confirmed' && <StatusBadge tone="emerald" label="Paid" />}
         {primaryPosition && <PositionBadge position={primaryPosition} emphasis="primary" />}
         {secondaryPosition && <PositionBadge position={secondaryPosition} emphasis="secondary" />}
+        {assignedPosition && <PositionBadge position={assignedPosition} emphasis="assigned" />}
       </p>
       <div className="flex shrink-0 items-center gap-1">
         {onConfirmPayment && (

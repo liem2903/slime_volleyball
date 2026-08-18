@@ -76,6 +76,7 @@ function SessionPage() {
                 state={player.state}
                 primaryPosition={player.primary_position}
                 secondaryPosition={player.secondary_position}
+                assignedPosition={player.assigned_position}
               />
             ))}
           </div>
@@ -93,6 +94,7 @@ function SessionPage() {
                   name={person.name}
                   primaryPosition={person.primary_position}
                   secondaryPosition={person.secondary_position}
+                  assignedPosition={person.assigned_position}
                 />
               ))
             ) : (

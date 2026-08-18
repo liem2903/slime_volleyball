@@ -44,8 +44,19 @@ export type SessionResult = {
     court_name: string;
     date: string;
     player_count: number;
-    state: 'locked' | 'unlocked' | 'completed' | 'cancelled';
+    state: 'locked' | 'unlocked' | 'completed' | 'teams' | 'cancelled';
     price_per_player: number | null;
+}
+
+export type TeamInput = {
+    name: string;
+    color?: string;
+}
+
+export type Team = {
+    id: string;
+    name: string;
+    color: string | null;
 }
 
 export type PlayerRequest = {
@@ -68,6 +79,9 @@ export type Player = {
     id: string;
     name: string;
     state: 'interested' | 'waitlist' | 'payment_pending' | 'confirmed';
+    primary_position: PlayerPosition | null;
+    secondary_position: PlayerPosition | null;
+    assigned_position: PlayerPosition | null;
 }
 
 export type WaitList = Player;
