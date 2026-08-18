@@ -146,3 +146,17 @@ export async function getPlayerAssignedPosition(playerId: String) {
     const { rows } = await pool.query('SELECT assigned_position FROM attendances WHERE id = $1', [playerId]);
     return rows[0].assigned_position;
 }
+
+export async function getTeams(sessionId: String) {
+    const { rows } = await pool.query('SELECT id, name, color FROM teams WHERE session_id = $1 ORDER BY name', [sessionId]);
+    return rows;
+}
+
+export async function deleteTeams(sessionId: String) {
+    await pool.query('DELETE FROM teams WHERE session_id = $1', [sessionId]);
+}
+
+export async function getPlayerTeamId(playerId: String) {
+    const { rows } = await pool.query('SELECT team_id FROM attendances WHERE id = $1', [playerId]);
+    return rows[0].team_id;
+}

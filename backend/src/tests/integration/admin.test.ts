@@ -3,7 +3,7 @@ import { expect, test, describe, beforeEach, afterEach } from "@jest/globals";
 import { SessionRequest } from "../../utility/types";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer, markPlayerPaid, getSessionCapacity, getPlayersAndWaitlist, setSessionState } from './helpers/session.testHelper'
+import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer, markPlayerPaid, getSessionCapacity, getPlayersAndWaitlist, setSessionState, getTeams, deleteTeams, getPlayerAssignedPosition, getPlayerTeamId } from './helpers/session.testHelper'
 import e from "express";
 import expectCookies from "supertest/lib/cookies";
 
@@ -908,6 +908,466 @@ describe("Race Condition for Changing Capacity", () => {
                 await deletePlayer(player_2_id, id);
                 await deletePlayer(w1, id);
                 await deletePlayer(w2, id);
+                await deleteSession(id);
+            }
+        }
+    });
+});
+
+// FEAT-003: PATCH /api/admin/:sessionId/:adminId/moveToTeams, body { teams: [{ name: string, color?: string }, ...] }.
+// These tests are written against FEAT/[FEAT-003].md ahead of the implementation (TDD) and are
+// expected to fail/error until the route/controller/business/repository layers exist.
+// Deviation from the spec's literal text, confirmed with the spec owner: a session must be
+// split into at least TWO teams, not one - "minimum length 1" doesn't make sense for a feature
+// whose whole purpose is dividing players between teams.
+describe("Moving a completed session to teams", () => {
+    test("Happy Path - exactly two teams, no color", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
+            expect(await getSessionState(id)).toBe("teams");
+
+            const teams = await getTeams(id);
+            expect(teams).toHaveLength(2);
+            expect(teams[0]).toMatchObject({ name: "Team A", color: null });
+            expect(teams[1]).toMatchObject({ name: "Team B", color: null });
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Happy Path - two teams, both with color", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Red", color: "#FF0000" }, { name: "Blue", color: "#0000FF" }]
+            });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
+
+            const teams = await getTeams(id);
+            expect(teams).toHaveLength(2);
+            expect(teams.find(t => t.name === "Red")?.color).toBe("#FF0000");
+            expect(teams.find(t => t.name === "Blue")?.color).toBe("#0000FF");
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Happy Path - more than two teams are all persisted atomically", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }, { name: "Team C" }, { name: "Team D" }]
+            });
+
+            expect(res.status).toBe(200);
+            expect(await getSessionState(id)).toBe("teams");
+            expect(await getTeams(id)).toHaveLength(4);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Happy Path - large team list has no artificial cap", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        const teams = Array.from({ length: 20 }, (_, i) => ({ name: `Team ${String(i).padStart(2, "0")}` }));
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams });
+
+            expect(res.status).toBe(200);
+            expect(await getTeams(id)).toHaveLength(20);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Happy Path - team names only need to be unique within a session, not globally", async () => {
+        const { id: id1, hash: hash1 } = await addAdminSession(mock_session_with_court);
+        const { id: id2, hash: hash2 } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id1, "completed");
+        await setSessionState(id2, "completed");
+
+        try {
+            let res1 = await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
+                teams: [{ name: "Red" }, { name: "Blue" }]
+            });
+            let res2 = await request(app).patch(`/api/admin/${id2}/${hash2}/moveToTeams`).send({
+                teams: [{ name: "Red" }, { name: "Green" }]
+            });
+
+            expect(res1.status).toBe(200);
+            expect(res2.status).toBe(200);
+            expect(await getTeams(id1)).toHaveLength(2);
+            expect(await getTeams(id2)).toHaveLength(2);
+        } finally {
+            await deleteTeams(id1);
+            await deleteTeams(id2);
+            await deleteSession(id1);
+            await deleteSession(id2);
+        }
+    });
+
+    test("Happy Path - moving to teams does not touch existing attendances' team_id or assigned_position", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        const { id: playerId } = await addInterestedPlayer(id, crypto.randomUUID(), "movteam1@gmail.com");
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerTeamId(playerId)).toBeNull();
+            expect(await getPlayerAssignedPosition(playerId)).toBeNull();
+            expect(await getPlayerState(playerId)).toBe("interested");
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Happy Path - extra/unknown fields on a team object are ignored", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A", id: "should-be-ignored" }, { name: "Team B", extra: 123 }]
+            });
+
+            expect(res.status).toBe(200);
+            const teams = await getTeams(id);
+            expect(teams).toHaveLength(2);
+            expect(teams.every(t => !("extra" in t))).toBe(true);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Missing teams field entirely", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({});
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Empty teams array is rejected", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [] });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Exactly one team is rejected - minimum is two", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Solo Team" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("teams is not an array", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: "Team A"
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("A team is missing name", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { color: "#FF0000" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("name is not a string", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: 123 }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("name is an empty string", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Duplicate team names in the same request are rejected", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team A" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("color is not a string", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A", color: 123 }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("One valid team and one invalid team - whole request rejected, nothing persisted", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("completed");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to move to teams when the session is unlocked", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("unlocked");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to move to teams when the session is locked", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await lockSession(id);
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("locked");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to move to teams when the session is cancelled", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "cancelled");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(400);
+            expect(await getSessionState(id)).toBe("cancelled");
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to move to teams when the session is already in teams state", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let firstRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+            expect(firstRes.status).toBe(200);
+
+            let secondRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team C" }, { name: "Team D" }]
+            });
+
+            expect(secondRes.status).toBe(400);
+            expect(await getSessionState(id)).toBe("teams");
+            const teams = await getTeams(id);
+            expect(teams).toHaveLength(2);
+            expect(teams.map(t => t.name).sort()).toEqual(["Team A", "Team B"]);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Trying to move to teams when you don't have access", async () => {
+        const { id } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+
+        try {
+            let res = await request(app).patch(`/api/admin/${id}/FAKE_ID/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(401);
+            expect(await getTeams(id)).toHaveLength(0);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Session ID doesn't exist", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+
+        try {
+            let res = await request(app).patch(`/api/admin/hello/${hash}/moveToTeams`).send({
+                teams: [{ name: "Team A" }, { name: "Team B" }]
+            });
+
+            expect(res.status).toBe(401);
+        } finally {
+            await deleteSession(id);
+        }
+    });
+});
+
+describe("Race Condition for Moving to Teams", () => {
+    test("Two concurrent moveToTeams requests on the same completed session - only one succeeds", async () => {
+        for (let i = 0; i <= 5; i++) {
+            const { id, hash } = await addAdminSession(mock_session_with_court);
+            await setSessionState(id, "completed");
+
+            try {
+                const responses = await Promise.all([
+                    request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [{ name: "Team A" }, { name: "Team B" }] }),
+                    request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [{ name: "Team C" }, { name: "Team D" }] }),
+                ]);
+
+                const statuses = responses.map(r => r.status).sort();
+                expect(statuses).toEqual([200, 400]);
+                expect(await getSessionState(id)).toBe("teams");
+                // Exactly one payload's teams got persisted, never both, never zero.
+                expect(await getTeams(id)).toHaveLength(2);
+            } finally {
+                await deleteTeams(id);
                 await deleteSession(id);
             }
         }
