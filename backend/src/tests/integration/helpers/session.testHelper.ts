@@ -1,7 +1,7 @@
 import expectCookies from "supertest/lib/cookies";
 import { pool } from "../../../setup/data"
 import { generateSHA256 } from "../../../utility/helper";
-import { SessionRequest } from "../../../utility/types";
+import { SessionRequest, PlayerPosition } from "../../../utility/types";
 
 type playerReturn = {
     id: String,
@@ -159,4 +159,12 @@ export async function deleteTeams(sessionId: String) {
 export async function getPlayerTeamId(playerId: String) {
     const { rows } = await pool.query('SELECT team_id FROM attendances WHERE id = $1', [playerId]);
     return rows[0].team_id;
+}
+
+export async function setPlayerTeamId(playerId: String, teamId: String | null) {
+    await pool.query('UPDATE attendances SET team_id = $1 WHERE id = $2', [teamId, playerId]);
+}
+
+export async function setPlayerAssignedPosition(playerId: String, position: PlayerPosition | null) {
+    await pool.query('UPDATE attendances SET assigned_position = $1 WHERE id = $2', [position, playerId]);
 }
