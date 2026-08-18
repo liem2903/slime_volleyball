@@ -61,12 +61,30 @@ describe("Getting teams for a session - happy path", () => {
         }
     });
 
+    test.each(["completed", "locked"] as const)(
+        "Session in '%s' state with no teams created yet still returns an empty array",
+        async (state) => {
+            const { id } = await addAdminSession(mock_session_with_court);
+            await setSessionState(id, state);
+
+            try {
+                let res = await request(app).get(`/api/teams/${id}`);
+
+                expect(res.status).toBe(200);
+                expect(res.body).toEqual({ data: [], success: true });
+            } finally {
+                await deleteSession(id);
+            }
+        }
+    );
+
     test("Teams exist but no players are assigned to any of them", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
 
         try {
             let res = await request(app).get(`/api/teams/${id}`);
@@ -86,9 +104,10 @@ describe("Getting teams for a session - happy path", () => {
     test("Player assigned to a team with no position set yet", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
 
@@ -113,9 +132,10 @@ describe("Getting teams for a session - happy path", () => {
     test("Assigned position reflects each of the four enum values", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
 
@@ -142,9 +162,10 @@ describe("Getting teams for a session - happy path", () => {
     test("Players are grouped under the correct team, with no leakage or duplication", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }, { name: "Team C" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
         const teamB = teams.find((t: any) => t.name === "Team B");
@@ -183,9 +204,10 @@ describe("Getting teams for a session - happy path", () => {
     test("Team color round-trips: explicit color vs omitted", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Red", color: "#FF0000" }, { name: "Blue" }]
         });
+        expect(moveRes.status).toBe(200);
 
         try {
             let res = await request(app).get(`/api/teams/${id}`);
@@ -202,9 +224,10 @@ describe("Getting teams for a session - happy path", () => {
     test("Response envelope contains exactly the declared fields, nothing extra", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
 
@@ -234,12 +257,14 @@ describe("Getting teams for a session - happy path", () => {
         const { id: id2, hash: hash2 } = await addAdminSession(mock_session_with_court);
         await setSessionState(id1, "completed");
         await setSessionState(id2, "completed");
-        await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
+        const moveRes1 = await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
             teams: [{ name: "Session1 Team" }, { name: "Session1 Team B" }]
         });
-        await request(app).patch(`/api/admin/${id2}/${hash2}/moveToTeams`).send({
+        expect(moveRes1.status).toBe(200);
+        const moveRes2 = await request(app).patch(`/api/admin/${id2}/${hash2}/moveToTeams`).send({
             teams: [{ name: "Session2 Team" }, { name: "Session2 Team B" }]
         });
+        expect(moveRes2.status).toBe(200);
 
         try {
             let res = await request(app).get(`/api/teams/${id1}`);
@@ -277,10 +302,18 @@ describe("Getting teams for a session - error handling", () => {
     });
 
     test("Malformed sessionId is handled gracefully, not a 500", async () => {
+        // The spec doesn't define behavior for a malformed sessionId shape - only that
+        // "no teams exist" must not error. So we only assert it's handled (not a crash),
+        // not a specific status/body: a 400 for an invalid ID shape is equally valid.
         let res = await request(app).get(`/api/teams/${encodeURIComponent("' OR '1'='1")}`);
 
-        expect(res.status).toBe(200);
-        expect(res.body).toEqual({ data: [], success: true });
+        expect(res.status).not.toBe(500);
+    });
+
+    test("Missing sessionId segment is not routed to this endpoint", async () => {
+        let res = await request(app).get(`/api/teams`);
+
+        expect(res.status).toBe(404);
     });
 
     test("Non-GET methods on the route are not handled", async () => {
@@ -294,9 +327,10 @@ describe("Getting teams for a session - edge cases", () => {
     test("Player not assigned to any team does not appear in the response", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
 
         const { id: playerId } = await addPaymentPendingPlayer(id, crypto.randomUUID(), "teamsget5@gmail.com");
         await markPlayerPaid(playerId);
@@ -328,9 +362,10 @@ describe("Getting teams for a session - edge cases", () => {
             secondary_position: "oppo"
         });
 
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
         await setPlayerTeamId(playerId, teamA.id);
@@ -354,9 +389,10 @@ describe("Getting teams for a session - edge cases", () => {
     test("assigned_position is present as an explicit null, not an omitted key", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
 
@@ -380,9 +416,10 @@ describe("Getting teams for a session - edge cases", () => {
     test("Multiple players on the same team hold different positions simultaneously", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
         const teamA = teams.find((t: any) => t.name === "Team A");
 
@@ -416,9 +453,10 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const trickyName = `O'Brien's "All-Stars" 🏐`;
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: trickyName }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
 
         try {
             let res = await request(app).get(`/api/teams/${id}`);
@@ -435,7 +473,8 @@ describe("Getting teams for a session - edge cases", () => {
         await setSessionState(id, "completed");
 
         const teamInputs = Array.from({ length: 10 }, (_, i) => ({ name: `Team ${String(i).padStart(2, "0")}` }));
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: teamInputs });
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: teamInputs });
+        expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
 
         const playerIdsByTeam: Record<string, string[]> = {};
@@ -470,9 +509,10 @@ describe("Getting teams for a session - edge cases", () => {
     test("Session cancelled after reaching teams state still returns its teams", async () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
-        await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
             teams: [{ name: "Team A" }, { name: "Team B" }]
         });
+        expect(moveRes.status).toBe(200);
         // The endpoint's contract is "return whatever is in the teams table for this
         // session_id" - it does not gate on session state (that's the whole point of the
         // "fetch unconditionally" design). Cancelling a session afterwards (permitted by
@@ -488,6 +528,64 @@ describe("Getting teams for a session - edge cases", () => {
         } finally {
             await deleteTeams(id);
             await deleteSession(id);
+        }
+    });
+
+    test("Player is included regardless of attendance state, not just 'confirmed'", async () => {
+        const { id, hash } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id, "completed");
+        const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
+            teams: [{ name: "Team A" }, { name: "Team B" }]
+        });
+        expect(moveRes.status).toBe(200);
+        const teams = await getTeams(id);
+        const teamA = teams.find((t: any) => t.name === "Team A");
+
+        // Deliberately left in `payment_pending` (never calling markPlayerPaid) - the
+        // endpoint groups by attendances.team_id and must not filter on state.
+        const { id: playerId } = await addPaymentPendingPlayer(id, crypto.randomUUID(), "teamsget9@gmail.com");
+        await setPlayerTeamId(playerId, teamA.id);
+
+        try {
+            let res = await request(app).get(`/api/teams/${id}`);
+            const returnedTeamA = res.body.data.find((t: any) => t.name === "Team A");
+
+            expect(returnedTeamA.players.map((p: any) => p.id)).toEqual([playerId]);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("A player whose team_id points at a different session's team does not leak into that team's roster", async () => {
+        const { id: id1, hash: hash1 } = await addAdminSession(mock_session_with_court);
+        const { id: id2 } = await addAdminSession(mock_session_with_court);
+        await setSessionState(id1, "completed");
+        const moveRes = await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
+            teams: [{ name: "Team A" }, { name: "Team B" }]
+        });
+        expect(moveRes.status).toBe(200);
+        const teams = await getTeams(id1);
+        const teamA = teams.find((t: any) => t.name === "Team A");
+
+        // playerId belongs to session id2, but its team_id is set to a team owned by
+        // session id1 - a state FEAT-005's own validation should prevent in production,
+        // but the read endpoint must not trust team_id alone without scoping to session_id.
+        const { id: playerId } = await addPaymentPendingPlayer(id2, crypto.randomUUID(), "teamsget10@gmail.com");
+        await markPlayerPaid(playerId);
+        await setPlayerTeamId(playerId, teamA.id);
+
+        try {
+            let res = await request(app).get(`/api/teams/${id1}`);
+            const returnedTeamA = res.body.data.find((t: any) => t.name === "Team A");
+
+            expect(returnedTeamA.players.find((p: any) => p.id === playerId)).toBeUndefined();
+        } finally {
+            await deletePlayer(playerId, id2);
+            await deleteTeams(id1);
+            await deleteSession(id1);
+            await deleteSession(id2);
         }
     });
 });
