@@ -128,6 +128,10 @@ export async function getPlayerState(player_id: String) {
     return rows[0].state;
 }
 
+export async function setPlayerState(player_id: String, state: string) {
+    await pool.query(`UPDATE attendances SET state = $1 WHERE id = $2`, [state, player_id]);
+}
+
 export async function lockSession(id: String) {
     const { rows } = await pool.query('UPDATE sessions SET state = $1 WHERE id = $2 RETURNING player_count, cost_cents', ['locked', id]);
     await pool.query('UPDATE sessions SET price_per_player = $1 WHERE id = $2', [Math.ceil(rows[0].cost_cents / rows[0].player_count), id]);

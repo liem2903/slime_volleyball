@@ -3,7 +3,7 @@ import { expect, test, describe, beforeEach, afterEach } from "@jest/globals";
 import { SessionRequest } from "../../utility/types";
 import request from 'supertest';
 import { app } from '../../setup/app';
-import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer, markPlayerPaid, getSessionCapacity, getPlayersAndWaitlist, setSessionState, getTeams, deleteTeams, getPlayerAssignedPosition, getPlayerTeamId } from './helpers/session.testHelper'
+import { addAdminSession, addInterestedPlayer, addWaitlistedPlayer, deletePlayer, deleteSession, doesPlayerExist, getPlayerState, getSessionState, lockSession, getPlayerCount, getSessionPlayerCount, getPricePerPlayer, addPaymentPendingPlayer, markPlayerPaid, getSessionCapacity, getPlayersAndWaitlist, setSessionState, getTeams, deleteTeams, getPlayerAssignedPosition, getPlayerTeamId, setPlayerTeamId, setPlayerAssignedPosition, setPlayerState } from './helpers/session.testHelper'
 import e from "express";
 import expectCookies from "supertest/lib/cookies";
 
@@ -1489,6 +1489,493 @@ describe("Race Condition for Moving to Teams", () => {
                 await deleteTeams(id);
                 await deleteSession(id);
             }
+        }
+    });
+});
+
+// FEAT-005: PATCH /api/admin/:sessionId/:adminId/:playerId/assignTeam, body { team_id: string }.
+// These tests are written against FEAT/[FEAT-005].md ahead of the implementation (TDD) and are
+// expected to fail/404 until the route/controller/business/repository layers exist.
+//
+// Design decisions confirmed with the spec owner, since the spec text is imprecise or silent on them:
+//   - adminId mismatch returns 401, not the 403 the spec text literally says - every other admin
+//     route gets its auth check from the shared check_is_admin middleware, which always throws
+//     401 (UnauthorisedRequest); there's no 403/ForbiddenError class anywhere in this codebase,
+//     and this endpoint reuses that same middleware rather than special-casing itself.
+//   - Team capacity (added to the `teams` table/moveToTeams input specifically for this feature,
+//     per the spec's own note) IS enforced here: assigning a player to a team already at capacity
+//     is rejected. A no-op reassignment (player already on that team) is exempt from the check,
+//     since it doesn't add an occupant.
+//   - An unknown/wrong-session team_id, an unknown/wrong-session playerId, and a non-'confirmed'
+//     player are all 400 (BadRequestError), matching the "WRONG STATE"-style pattern used by
+//     moveToTeamsRepository/confirmPlayerRepository, not 404.
+//   - "reassigned to a new team" (which resets assigned_position to NULL) is read to include a
+//     player's very first team assignment (team_id: NULL -> X), not only team-to-team
+//     reassignment - the alternative reading (first assignment never resets) offered no reason
+//     a position set before a team exists (FEAT-006 explicitly allows either order) should
+//     survive the player's first team assignment.
+
+function teamsInput(capacities: number[]) {
+    return capacities.map((capacity, i) => ({ name: `Team ${String.fromCharCode(65 + i)}`, capacity }));
+}
+
+async function setupSessionInTeamsState(capacities: number[]) {
+    const { id, hash } = await addAdminSession(mock_session_with_court);
+    await setSessionState(id, "completed");
+
+    const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: teamsInput(capacities) });
+    if (moveRes.status !== 200) {
+        throw new Error(`setupSessionInTeamsState: moveToTeams failed (${moveRes.status}): ${JSON.stringify(moveRes.body)}`);
+    }
+
+    const teams = await getTeams(id);
+    return { id, hash, teams };
+}
+
+async function addConfirmedPlayer(sessionId: String, email: string) {
+    const { id: playerId } = await addPaymentPendingPlayer(sessionId, crypto.randomUUID(), email);
+    await markPlayerPaid(playerId);
+    return playerId;
+}
+
+describe("Assigning a player to a team - happy path", () => {
+    test("Assigns a confirmed player with no team yet to a valid team", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-hp1@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
+            expect(await getPlayerTeamId(playerId)).toBe(teams[0].id);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Assigning a player for the first time also resets any pre-existing assigned_position to NULL", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-hp2@gmail.com");
+        await setPlayerAssignedPosition(playerId, "middle");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerAssignedPosition(playerId)).toBeNull();
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Response shape matches spec exactly", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-hp3@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(Object.keys(res.body)).toEqual(["success"]);
+            expect(res.body.success).toBe(true);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("GET /api/teams/:sessionId reflects the assignment", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-hp4@gmail.com");
+
+        try {
+            const assignRes = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+            expect(assignRes.status).toBe(200);
+
+            const res = await request(app).get(`/api/teams/${id}`);
+            const returnedTeam = res.body.data.find((t: any) => t.id === teams[0].id);
+
+            expect(returnedTeam.players).toEqual([
+                { id: playerId, name: "FILLER MAN", assigned_position: null }
+            ]);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+});
+
+describe("Assigning a player to a team - reassignment behavior", () => {
+    test("Reassigns a player already on team A to team B", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-re1@gmail.com");
+        await setPlayerTeamId(playerId, teams[0].id);
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[1].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerTeamId(playerId)).toBe(teams[1].id);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Reassignment resets assigned_position to NULL", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-re2@gmail.com");
+        await setPlayerTeamId(playerId, teams[0].id);
+        await setPlayerAssignedPosition(playerId, "oppo");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[1].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerAssignedPosition(playerId)).toBeNull();
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Reassigning to the SAME team the player is already on succeeds as a no-op", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-re3@gmail.com");
+        await setPlayerTeamId(playerId, teams[0].id);
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ success: true });
+            expect(await getPlayerTeamId(playerId)).toBe(teams[0].id);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("No-op reassignment does NOT reset assigned_position", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-re4@gmail.com");
+        await setPlayerTeamId(playerId, teams[0].id);
+        await setPlayerAssignedPosition(playerId, "lib");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerAssignedPosition(playerId)).toBe("lib");
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("No-op reassignment succeeds even when the team is already at full capacity", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([1, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-re5@gmail.com");
+        await setPlayerTeamId(playerId, teams[0].id);
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerTeamId(playerId)).toBe(teams[0].id);
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+});
+
+describe("Assigning a player to a team - capacity", () => {
+    test("Rejects assignment when the target team is already at capacity", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([1, 10]);
+        const occupantId = await addConfirmedPlayer(id, "assignteam-cap1a@gmail.com");
+        await setPlayerTeamId(occupantId, teams[0].id);
+        const newPlayerId = await addConfirmedPlayer(id, "assignteam-cap1b@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${newPlayerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerTeamId(newPlayerId)).toBeNull();
+        } finally {
+            await deletePlayer(occupantId, id);
+            await deletePlayer(newPlayerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Succeeds at exactly capacity - 1 -> capacity", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([2, 10]);
+        const occupantId = await addConfirmedPlayer(id, "assignteam-cap2a@gmail.com");
+        await setPlayerTeamId(occupantId, teams[0].id);
+        const newPlayerId = await addConfirmedPlayer(id, "assignteam-cap2b@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${newPlayerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerTeamId(newPlayerId)).toBe(teams[0].id);
+        } finally {
+            await deletePlayer(occupantId, id);
+            await deletePlayer(newPlayerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Moving a player from a full team to a different team frees a slot on the original team", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([1, 10]);
+        const movingPlayerId = await addConfirmedPlayer(id, "assignteam-cap3a@gmail.com");
+        await setPlayerTeamId(movingPlayerId, teams[0].id);
+        const newPlayerId = await addConfirmedPlayer(id, "assignteam-cap3b@gmail.com");
+
+        try {
+            const moveAwayRes = await request(app).patch(`/api/admin/${id}/${hash}/${movingPlayerId}/assignTeam`).send({ team_id: teams[1].id });
+            expect(moveAwayRes.status).toBe(200);
+
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${newPlayerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(200);
+            expect(await getPlayerTeamId(newPlayerId)).toBe(teams[0].id);
+        } finally {
+            await deletePlayer(movingPlayerId, id);
+            await deletePlayer(newPlayerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+});
+
+describe("Race Condition for Assigning a Player to a Team", () => {
+    test("Two concurrent assignTeam calls for the last open slot on a team resolve to exactly one success", async () => {
+        for (let i = 0; i <= 5; i++) {
+            const { id, hash, teams } = await setupSessionInTeamsState([1, 10]);
+            const playerAId = await addConfirmedPlayer(id, `assignteam-race${i}a@gmail.com`);
+            const playerBId = await addConfirmedPlayer(id, `assignteam-race${i}b@gmail.com`);
+
+            try {
+                const responses = await Promise.all([
+                    request(app).patch(`/api/admin/${id}/${hash}/${playerAId}/assignTeam`).send({ team_id: teams[0].id }),
+                    request(app).patch(`/api/admin/${id}/${hash}/${playerBId}/assignTeam`).send({ team_id: teams[0].id }),
+                ]);
+
+                const statuses = responses.map(r => r.status).sort();
+                expect(statuses).toEqual([200, 400]);
+
+                const teamIds = [await getPlayerTeamId(playerAId), await getPlayerTeamId(playerBId)];
+                expect(teamIds.filter(t => t === teams[0].id)).toHaveLength(1);
+            } finally {
+                await deletePlayer(playerAId, id);
+                await deletePlayer(playerBId, id);
+                await deleteTeams(id);
+                await deleteSession(id);
+            }
+        }
+    });
+});
+
+describe("Assigning a player to a team - player validation", () => {
+    test.each(["waitlist", "interested", "payment_pending", "cancelled", "payment_cancelled"] as const)(
+        "Rejects a player whose state is '%s', not 'confirmed'",
+        async (state) => {
+            const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+            const { id: playerId } = await addPaymentPendingPlayer(id, crypto.randomUUID(), `assignteam-status-${state}@gmail.com`);
+            await setPlayerState(playerId, state);
+
+            try {
+                const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+                expect(res.status).toBe(400);
+                expect(await getPlayerTeamId(playerId)).toBeNull();
+            } finally {
+                await deletePlayer(playerId, id);
+                await deleteTeams(id);
+                await deleteSession(id);
+            }
+        }
+    );
+
+    test("Rejects a playerId that does not exist", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${crypto.randomUUID()}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(400);
+        } finally {
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Rejects a playerId that exists but belongs to a different session", async () => {
+        const { id, hash, teams } = await setupSessionInTeamsState([10, 10]);
+        const { id: otherId } = await addAdminSession(mock_session_with_court);
+        const foreignPlayerId = await addConfirmedPlayer(otherId, "assignteam-foreign-player@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${foreignPlayerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerTeamId(foreignPlayerId)).toBeNull();
+        } finally {
+            await deletePlayer(foreignPlayerId, otherId);
+            await deleteSession(otherId);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+});
+
+describe("Assigning a player to a team - team validation", () => {
+    test("Rejects a team_id that does not exist at all", async () => {
+        const { id, hash } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-noteam@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: crypto.randomUUID() });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerTeamId(playerId)).toBeNull();
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Rejects a team_id that exists but belongs to a different session", async () => {
+        const { id, hash } = await setupSessionInTeamsState([10, 10]);
+        const { id: otherId, teams: foreignTeams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-foreign-team@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: foreignTeams[0].id });
+
+            expect(res.status).toBe(400);
+            expect(await getPlayerTeamId(playerId)).toBeNull();
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+            await deleteTeams(otherId);
+            await deleteSession(otherId);
+        }
+    });
+});
+
+describe("Assigning a player to a team - session state", () => {
+    test.each(["unlocked", "locked", "completed", "cancelled"] as const)(
+        "Rejects when session state is '%s', not 'teams'",
+        async (state) => {
+            const { id, hash } = await addAdminSession(mock_session_with_court);
+            const playerId = await addConfirmedPlayer(id, `assignteam-sessstate-${state}@gmail.com`);
+            await setSessionState(id, state);
+
+            try {
+                const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: crypto.randomUUID() });
+
+                expect(res.status).toBe(400);
+                expect(res.body.message).toBe("Session state is not teams");
+                expect(await getPlayerTeamId(playerId)).toBeNull();
+            } finally {
+                await deletePlayer(playerId, id);
+                await deleteSession(id);
+            }
+        }
+    );
+});
+
+describe("Assigning a player to a team - admin authorization", () => {
+    test("Rejects when adminId does not match the session's actual admin", async () => {
+        const { id, teams } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-badadmin@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/FAKE_ID/${playerId}/assignTeam`).send({ team_id: teams[0].id });
+
+            expect(res.status).toBe(401);
+            expect(await getPlayerTeamId(playerId)).toBeNull();
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Rejects when the session does not exist", async () => {
+        const res = await request(app)
+            .patch(`/api/admin/${crypto.randomUUID()}/FAKE_ID/${crypto.randomUUID()}/assignTeam`)
+            .send({ team_id: crypto.randomUUID() });
+
+        expect(res.status).toBe(401);
+    });
+});
+
+describe("Assigning a player to a team - request validation", () => {
+    test("Rejects a missing team_id in the request body", async () => {
+        const { id, hash } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-missingteamid@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({});
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Rejects a non-string team_id", async () => {
+        const { id, hash } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-nonstringteamid@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: 12345 });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
+        }
+    });
+
+    test("Rejects an empty-string team_id", async () => {
+        const { id, hash } = await setupSessionInTeamsState([10, 10]);
+        const playerId = await addConfirmedPlayer(id, "assignteam-emptyteamid@gmail.com");
+
+        try {
+            const res = await request(app).patch(`/api/admin/${id}/${hash}/${playerId}/assignTeam`).send({ team_id: "" });
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty("errors");
+        } finally {
+            await deletePlayer(playerId, id);
+            await deleteTeams(id);
+            await deleteSession(id);
         }
     });
 });
