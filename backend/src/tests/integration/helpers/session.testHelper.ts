@@ -152,7 +152,7 @@ export async function getPlayerAssignedPosition(playerId: String) {
 }
 
 export async function getTeams(sessionId: String) {
-    const { rows } = await pool.query('SELECT id, name, color FROM teams WHERE session_id = $1 ORDER BY name', [sessionId]);
+    const { rows } = await pool.query('SELECT id, name, color, capacity FROM teams WHERE session_id = $1 ORDER BY name', [sessionId]);
     return rows;
 }
 

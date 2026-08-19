@@ -31,6 +31,7 @@ export async function moveToTeamsBusiness(teams: TeamInput[], sessionId: string)
         id: crypto.randomUUID(),
         name: team.name,
         color: team.color ?? null,
+        capacity: team.capacity,
     }));
 
     await moveToTeamsRepository(teamsWithIds, sessionId);

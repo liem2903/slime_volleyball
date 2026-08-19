@@ -193,7 +193,7 @@ export async function changeCapacityRepository(capacity: number, sessionId: stri
     }
 }
 
-export async function moveToTeamsRepository(teams: {id: string, name: string, color: string | null}[], sessionId: string) {
+export async function moveToTeamsRepository(teams: {id: string, name: string, color: string | null, capacity: number}[], sessionId: string) {
     const client = await pool.connect();
 
     try {
@@ -208,8 +208,8 @@ export async function moveToTeamsRepository(teams: {id: string, name: string, co
 
         for (const team of teams) {
             await client.query(
-                'INSERT INTO teams (id, session_id, name, color) VALUES ($1, $2, $3, $4)',
-                [team.id, sessionId, team.name, team.color]
+                'INSERT INTO teams (id, session_id, name, color, capacity) VALUES ($1, $2, $3, $4, $5)',
+                [team.id, sessionId, team.name, team.color, team.capacity]
             );
         }
 

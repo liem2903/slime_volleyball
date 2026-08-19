@@ -82,7 +82,7 @@ describe("Getting teams for a session - happy path", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
 
@@ -105,7 +105,7 @@ describe("Getting teams for a session - happy path", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -133,7 +133,7 @@ describe("Getting teams for a session - happy path", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -163,7 +163,7 @@ describe("Getting teams for a session - happy path", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }, { name: "Team C" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }, { capacity: 10, name: "Team C" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -205,7 +205,7 @@ describe("Getting teams for a session - happy path", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Red", color: "#FF0000" }, { name: "Blue" }]
+            teams: [{ capacity: 10, name: "Red", color: "#FF0000" }, { capacity: 10, name: "Blue" }]
         });
         expect(moveRes.status).toBe(200);
 
@@ -225,7 +225,7 @@ describe("Getting teams for a session - happy path", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -258,11 +258,11 @@ describe("Getting teams for a session - happy path", () => {
         await setSessionState(id1, "completed");
         await setSessionState(id2, "completed");
         const moveRes1 = await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
-            teams: [{ name: "Session1 Team" }, { name: "Session1 Team B" }]
+            teams: [{ capacity: 10, name: "Session1 Team" }, { capacity: 10, name: "Session1 Team B" }]
         });
         expect(moveRes1.status).toBe(200);
         const moveRes2 = await request(app).patch(`/api/admin/${id2}/${hash2}/moveToTeams`).send({
-            teams: [{ name: "Session2 Team" }, { name: "Session2 Team B" }]
+            teams: [{ capacity: 10, name: "Session2 Team" }, { capacity: 10, name: "Session2 Team B" }]
         });
         expect(moveRes2.status).toBe(200);
 
@@ -328,7 +328,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
 
@@ -363,7 +363,7 @@ describe("Getting teams for a session - edge cases", () => {
         });
 
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -390,7 +390,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -417,7 +417,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -454,7 +454,7 @@ describe("Getting teams for a session - edge cases", () => {
         await setSessionState(id, "completed");
         const trickyName = `O'Brien's "All-Stars" 🏐`;
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: trickyName }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: trickyName }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
 
@@ -472,7 +472,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
 
-        const teamInputs = Array.from({ length: 10 }, (_, i) => ({ name: `Team ${String(i).padStart(2, "0")}` }));
+        const teamInputs = Array.from({ length: 10 }, (_, i) => ({ capacity: 10, name: `Team ${String(i).padStart(2, "0")}` }));
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: teamInputs });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -510,7 +510,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         // The endpoint's contract is "return whatever is in the teams table for this
@@ -535,7 +535,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id);
@@ -563,7 +563,7 @@ describe("Getting teams for a session - edge cases", () => {
         const { id: id2 } = await addAdminSession(mock_session_with_court);
         await setSessionState(id1, "completed");
         const moveRes = await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
-            teams: [{ name: "Team A" }, { name: "Team B" }]
+            teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
         });
         expect(moveRes.status).toBe(200);
         const teams = await getTeams(id1);

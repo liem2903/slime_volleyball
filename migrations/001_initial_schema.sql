@@ -23,7 +23,8 @@ CREATE TABLE teams (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL REFERENCES sessions(id),
     name VARCHAR(255) NOT NULL,
-    color VARCHAR(255)
+    color VARCHAR(255),
+    capacity INTEGER NOT NULL
 );
 
 CREATE TABLE attendances (

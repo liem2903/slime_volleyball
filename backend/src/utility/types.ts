@@ -50,6 +50,7 @@ export type SessionResult = {
 
 export type TeamInput = {
     name: string;
+    capacity: number;
     color?: string;
 }
 
@@ -57,6 +58,7 @@ export type Team = {
     id: string;
     name: string;
     color: string | null;
+    capacity: number;
 }
 
 export type TeamPlayer = {

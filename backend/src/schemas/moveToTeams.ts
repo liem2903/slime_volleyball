@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const TeamInputSchema = z.object({
     name: z.string().trim().min(1).max(255),
+    capacity: z.number().int().positive(),
     color: z.string().trim().min(1).max(255).optional(),
 });
 

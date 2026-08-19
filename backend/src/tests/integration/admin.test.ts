@@ -914,9 +914,12 @@ describe("Race Condition for Changing Capacity", () => {
     });
 });
 
-// FEAT-003: PATCH /api/admin/:sessionId/:adminId/moveToTeams, body { teams: [{ name: string, color?: string }, ...] }.
+// FEAT-003: PATCH /api/admin/:sessionId/:adminId/moveToTeams, body { teams: [{ name: string, capacity: number, color?: string }, ...] }.
 // These tests are written against FEAT/[FEAT-003].md ahead of the implementation (TDD) and are
 // expected to fail/error until the route/controller/business/repository layers exist.
+// `capacity` was added retroactively per FEAT-005 ("Team's should have a capacity which is set
+// when the team is initially created") - every team object below carries `capacity: 10` as an
+// arbitrary valid value unless a test is specifically exercising capacity.
 // Deviation from the spec's literal text, confirmed with the spec owner: a session must be
 // split into at least TWO teams, not one - "minimum length 1" doesn't make sense for a feature
 // whose whole purpose is dividing players between teams.
@@ -927,7 +930,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(200);
@@ -950,7 +953,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Red", color: "#FF0000" }, { name: "Blue", color: "#0000FF" }]
+                teams: [{ capacity: 10, name: "Red", color: "#FF0000" }, { capacity: 10, name: "Blue", color: "#0000FF" }]
             });
 
             expect(res.status).toBe(200);
@@ -972,7 +975,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }, { name: "Team C" }, { name: "Team D" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }, { capacity: 10, name: "Team C" }, { capacity: 10, name: "Team D" }]
             });
 
             expect(res.status).toBe(200);
@@ -988,7 +991,7 @@ describe("Moving a completed session to teams", () => {
         const { id, hash } = await addAdminSession(mock_session_with_court);
         await setSessionState(id, "completed");
 
-        const teams = Array.from({ length: 20 }, (_, i) => ({ name: `Team ${String(i).padStart(2, "0")}` }));
+        const teams = Array.from({ length: 20 }, (_, i) => ({ capacity: 10, name: `Team ${String(i).padStart(2, "0")}` }));
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams });
@@ -1009,10 +1012,10 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res1 = await request(app).patch(`/api/admin/${id1}/${hash1}/moveToTeams`).send({
-                teams: [{ name: "Red" }, { name: "Blue" }]
+                teams: [{ capacity: 10, name: "Red" }, { capacity: 10, name: "Blue" }]
             });
             let res2 = await request(app).patch(`/api/admin/${id2}/${hash2}/moveToTeams`).send({
-                teams: [{ name: "Red" }, { name: "Green" }]
+                teams: [{ capacity: 10, name: "Red" }, { capacity: 10, name: "Green" }]
             });
 
             expect(res1.status).toBe(200);
@@ -1035,7 +1038,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(200);
@@ -1055,7 +1058,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A", id: "should-be-ignored" }, { name: "Team B", extra: 123 }]
+                teams: [{ capacity: 10, name: "Team A", id: "should-be-ignored" }, { capacity: 10, name: "Team B", extra: 123 }]
             });
 
             expect(res.status).toBe(200);
@@ -1111,7 +1114,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Solo Team" }]
+                teams: [{ capacity: 10, name: "Solo Team" }]
             });
 
             expect(res.status).toBe(400);
@@ -1148,7 +1151,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { color: "#FF0000" }]
+                teams: [{ capacity: 10, name: "Team A" }, { color: "#FF0000" }]
             });
 
             expect(res.status).toBe(400);
@@ -1167,7 +1170,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: 123 }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: 123 }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1185,7 +1188,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1203,7 +1206,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "   " }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "   " }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1222,7 +1225,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team A" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team A" }]
             });
 
             expect(res.status).toBe(400);
@@ -1241,7 +1244,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A", color: 123 }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A", color: 123 }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1259,7 +1262,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "" }]
             });
 
             expect(res.status).toBe(400);
@@ -1297,7 +1300,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, null]
+                teams: [{ capacity: 10, name: "Team A" }, null]
             });
 
             expect(res.status).toBe(400);
@@ -1317,7 +1320,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: tooLongName }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: tooLongName }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1337,7 +1340,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A", color: tooLongColor }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A", color: tooLongColor }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1355,7 +1358,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1374,7 +1377,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1393,7 +1396,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(400);
@@ -1412,12 +1415,12 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let firstRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
             expect(firstRes.status).toBe(200);
 
             let secondRes = await request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team C" }, { name: "Team D" }]
+                teams: [{ capacity: 10, name: "Team C" }, { capacity: 10, name: "Team D" }]
             });
 
             expect(secondRes.status).toBe(400);
@@ -1438,7 +1441,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/${id}/FAKE_ID/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(401);
@@ -1454,7 +1457,7 @@ describe("Moving a completed session to teams", () => {
 
         try {
             let res = await request(app).patch(`/api/admin/hello/${hash}/moveToTeams`).send({
-                teams: [{ name: "Team A" }, { name: "Team B" }]
+                teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }]
             });
 
             expect(res.status).toBe(401);
@@ -1472,8 +1475,8 @@ describe("Race Condition for Moving to Teams", () => {
 
             try {
                 const responses = await Promise.all([
-                    request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [{ name: "Team A" }, { name: "Team B" }] }),
-                    request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [{ name: "Team C" }, { name: "Team D" }] }),
+                    request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [{ capacity: 10, name: "Team A" }, { capacity: 10, name: "Team B" }] }),
+                    request(app).patch(`/api/admin/${id}/${hash}/moveToTeams`).send({ teams: [{ capacity: 10, name: "Team C" }, { capacity: 10, name: "Team D" }] }),
                 ]);
 
                 const statuses = responses.map(r => r.status).sort();
