@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { lockSessionBusiness, kickPlayerBusiness, swapStatesBusiness, confirmPlayerBusiness, unlockSessionBusiness, changeCapacityBusiness, moveToTeamsBusiness } from '../business/adminBusiness';
+import { lockSessionBusiness, kickPlayerBusiness, swapStatesBusiness, confirmPlayerBusiness, unlockSessionBusiness, changeCapacityBusiness, moveToTeamsBusiness, assignTeamBusiness } from '../business/adminBusiness';
 import { TeamInput } from '../utility/types';
 
 export async function lockSession(req: Request, res: Response, next: NextFunction) {
@@ -77,6 +77,18 @@ export async function moveToTeams(req: Request, res: Response, next: NextFunctio
         const { sessionId } = req.params;
 
         await moveToTeamsBusiness(teams, sessionId);
+        res.status(200).json({success: true});
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function assignTeam(req: Request, res: Response, next: NextFunction) {
+    try {
+        const { playerId, sessionId } = req.params;
+        const { team_id } = req.body;
+
+        await assignTeamBusiness(playerId, team_id, sessionId);
         res.status(200).json({success: true});
     } catch (err) {
         next(err);

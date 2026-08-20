@@ -172,3 +172,15 @@ export async function setPlayerTeamId(playerId: String, teamId: String | null) {
 export async function setPlayerAssignedPosition(playerId: String, position: PlayerPosition | null) {
     await pool.query('UPDATE attendances SET assigned_position = $1 WHERE id = $2', [position, playerId]);
 }
+
+export async function addAdminSessionWithHash(sessionRequest: SessionRequest, hash: string): Promise<playerReturn> {
+    const id = crypto.randomUUID();
+    const encrypted_hash = generateSHA256(hash);
+
+    await pool.query(`INSERT INTO sessions (id, host_name, host_email, created_at, admin_token_hash, time_start, time_end, cost_cents, capacity, date, court_name, player_count) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,    [id, sessionRequest.host_name, sessionRequest.host_email, new Date().toISOString(), encrypted_hash, "2026-07-10T01:36:00.000Z", "2026-07-10T01:36:00.000Z", sessionRequest.cost_cents, sessionRequest.capacity, "2026-07-10T01:36:00.000Z", "Olympic Park", 1])
+    return {hash, id}
+}
+
+export async function setTeamCapacity(teamId: String, capacity: number) {
+    await pool.query('UPDATE teams SET capacity = $1 WHERE id = $2', [capacity, teamId]);
+}

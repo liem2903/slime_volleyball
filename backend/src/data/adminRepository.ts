@@ -223,6 +223,46 @@ export async function moveToTeamsRepository(teams: {id: string, name: string, co
     }
 }
 
+export async function assignTeamRepository(playerId: string, teamId: string, sessionId: string) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows: session_data } = await client.query('SELECT state FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+
+        if (session_data.length === 0) throw new NotFoundError();
+        if (session_data[0].state != "teams") throw new BadRequestError("Session state is not teams", "WRONG STATE");
+
+        const { rows: player_data } = await client.query('SELECT state, team_id FROM attendances WHERE id = $1 AND session_id = $2 FOR UPDATE', [playerId, sessionId]);
+
+        if (player_data.length === 0) throw new BadRequestError("Player not found in this session", "INVALID PLAYER");
+        if (player_data[0].state != "confirmed") throw new BadRequestError("Player is not confirmed", "INVALID PLAYER STATE");
+
+        const currentTeamId = player_data[0].team_id;
+
+        const { rows: team_data } = await client.query('SELECT capacity FROM teams WHERE id = $1 AND session_id = $2 FOR UPDATE', [teamId, sessionId]);
+
+        if (team_data.length === 0) throw new BadRequestError("Team not found in this session", "INVALID TEAM");
+
+        if (currentTeamId !== teamId) {
+            const { rows: occupancy } = await client.query('SELECT COUNT(*)::int AS count FROM attendances WHERE team_id = $1', [teamId]);
+
+            if (occupancy[0].count >= team_data[0].capacity) throw new BadRequestError("Team is at capacity", "TEAM FULL");
+
+            await client.query('UPDATE attendances SET team_id = $1, assigned_position = NULL WHERE id = $2', [teamId, playerId]);
+        }
+
+        await client.query('COMMIT');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err instanceof DatabaseError) ErrorParse(err);
+        else throw err;
+    } finally {
+        client.release();
+    }
+}
+
 export async function unlockSessionRepository(sessionId: string) {
     const client = await pool.connect();
 

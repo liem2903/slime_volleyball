@@ -1,4 +1,4 @@
-import { lockSessionRepository, kickPlayerRepository, swapStatesRepository, confirmPlayerRepository, unlockSessionRepository, changeCapacityRepository, moveToTeamsRepository } from '../data/adminRepository';
+import { lockSessionRepository, kickPlayerRepository, swapStatesRepository, confirmPlayerRepository, unlockSessionRepository, changeCapacityRepository, moveToTeamsRepository, assignTeamRepository } from '../data/adminRepository';
 import { TeamInput } from '../utility/types';
 import crypto from 'crypto';
 
@@ -35,4 +35,8 @@ export async function moveToTeamsBusiness(teams: TeamInput[], sessionId: string)
     }));
 
     await moveToTeamsRepository(teamsWithIds, sessionId);
+}
+
+export async function assignTeamBusiness(playerId: string, teamId: string, sessionId: string) {
+    await assignTeamRepository(playerId, teamId, sessionId);
 }
